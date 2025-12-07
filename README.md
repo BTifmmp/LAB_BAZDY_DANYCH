@@ -67,7 +67,7 @@ Maciej Życki
 
 ## Schemat bazy danych
 
-(diagram (rysunek) przedstawiający schemat bazy danych)
+![schemat photo](schemat_photo.png)
 
 ## Opis poszczególnych tabel
 
