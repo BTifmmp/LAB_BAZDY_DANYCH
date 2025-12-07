@@ -19,12 +19,12 @@ Maciej Życki
 - US-02: Składanie zamówienia z magazynu\
   Jako klient chcę złożyć zamówienie na dostępne produkty, aby szybko otrzymać meble.
 - US-03: Zamówienie produktów do produkcji\
-  Jako klient chcę zamówić produkty, których nie ma w magazynie, aby wyposażyć nową salę konferencyjną z podanym terminem realizacji.
+  Jako klient chcę zamówić produkty, których nie ma w magazynie, aby wyposażyć nową salę konferencyjną w danym temrinie.
 
 ### 2. Sprzedaż
 
 - US-04: Przyznawanie rabatu\
-  Jako pracownik sprzedaży chcę przydzielić rabat do zamówienia klienta, aby zachęcić do większego zakupu.
+  Jako pracownik sprzedaży chcę przydzielić rabat procentowy do poszczegolnych produktow w zamówieniu klienta, aby zachęcić do większego zakupu.
 - US-05: Historia zamówień klienta\
   Jako pracownik sprzedaży chcę zobaczyć historię zamówień klienta wraz z rabatami, aby lepiej go obsłużyć.
 - US-06: Stan magazynowy produktów\
@@ -37,24 +37,30 @@ Maciej Życki
 - US-08: Czesci w danym meblu\
   Jako kierownik produkcji chcę mieć możliwość sprawdzenia z jakich części składa sie dany produkt, aby wiedzieć co jest potrzebne do jego produkcji.
 - US-09: Estymacja czasu produkcji\
-  Jako kierownik produkcji chcę oszacować czas potrzebny na wyprodukowanie zamówionych produktów, aby potwierdzić termin realizacji.
+  Jako kierownik produkcji chcę oszacowany czas potrzebny na wyprodukowanie produktu, aby lepiej zaplanowac rozkład produckji.
 - US-10: Zaplanowana produckja\
   Jako kierownik produkcji chcę mieć możliwość sprawdzenia mebli zaplanowanych do produckji, aby lepiej zarządzać linia produkcyjną.
+- US-11 Planowanie produckji
+  Jako kierownik produkcji chce móc planowac czas operacyjny oraz obciązenie lini produkcyjnych, aby odpowiednio rozdzielać zlecenia produckcyjne
 
 ### 4. Magazyn
 
-- US-11: Przyjęcie produktów z produkcji\
+- US-12: Przyjęcie produktów z produkcji\
   Jako magazynier chcę zarejestrować przyjęcie gotowych produktów z produkcji, aby zaktualizować stan magazynowy.
-- US-12: Stan części do produkcji\
+- US-13: Stan części do produkcji\
   Jako magazynier chcę sprawdzić stan magazynowy części, aby zgłosić potrzebę zamówienia nowych.
+- US-14: Historia magazynu\
+  Jako magazynier chcę śledzić ruchy magazynowe, aby uniknąć nieporozumień.
+- US-15: Zamawienie czesci\
+  Jako magazynier chcę móc skladać zamowienia na części, aby uniknąć braków w magazynie.
 
 ### 5. Kadra Zarządcza
 
-- US-13: Raport kosztów produkcji\
+- US-16: Raport kosztów produkcji\
    Jako dyrektor finansowy chcę zobaczyć raport kosztów produkcji (jednostkowych i grup produktów) w różnych okresach, aby ustalić odpowiedni budżet.
-- US-14: Raport sprzedaży\
+- US-17: Raport sprzedaży\
   Jako dyrektor handlowy chcę zobaczyć raport sprzedaży oraz kosztów grup produktów w tygodniach/miesiącach, aby analizować trendy oraz ocenić rentowność.
-- US-15: Plan produkcji\
+- US-18: Plan produkcji\
   Jako dyrektor operacyjny chcę zobaczyć plan wytworzenia produktów w różnych przedziałach czasowych, aby monitorować obciążenie zakładu.
 
 # 2. Baza danych
