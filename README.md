@@ -65,6 +65,123 @@ Maciej Życki
 
 ## Opis poszczególnych tabel
 
+### Tabela: Parts
+
+```sql
+CREATE TABLE Parts (
+    PartId int NOT NULL,
+    PartsCategories_ProductCategoryId int NOT NULL,
+    Available int NOT NULL,
+    Reserved int NOT NULL,
+    MinimalQuantity int NOT NULL,
+    CONSTRAINT Parts_pk PRIMARY KEY (PartId),
+    CONSTRAINT Parts_PartsCategories_fk FOREIGN KEY (PartsCategories_ProductCategoryId)
+        REFERENCES PartsCategories (PartCategoryId)
+);
+```
+
+**Opis:** Tabela przechowuje informacje o częściach/komponentach wykorzystywanych w produkcji.
+
+| Nazwa atrybutu                    | Typ | Opis/Uwagi                                                          |
+| --------------------------------- | --- | ------------------------------------------------------------------- |
+| PartId                            | int | Klucz główny, unikalny identyfikator części                         |
+| PartsCategories_ProductCategoryId | int | Klucz obcy do tabeli PartsCategories, identyfikuje kategorię części |
+| Available                         | int | Liczba dostępnych sztuk części na magazynie                         |
+| Reserved                          | int | Liczba zarezerwowanych sztuk części                                 |
+| MinimalQuantity                   | int | Minimalna ilość części, która powinna być utrzymywana na magazynie  |
+
+---
+
+### Tabela: PartsCategories
+
+```sql
+CREATE TABLE PartsCategories (
+    PartCategoryId int NOT NULL,
+    CategoryName varchar(100) NOT NULL,
+    CONSTRAINT PartsCategories_pk PRIMARY KEY (PartCategoryId)
+);
+```
+
+| Nazwa atrybutu | Typ          | Opis/Uwagi                                            |
+| -------------- | ------------ | ----------------------------------------------------- |
+| PartCategoryId | int          | Klucz główny, unikalny identyfikator kategorii części |
+| CategoryName   | varchar(100) | Nazwa kategorii części                                |
+
+---
+
+### Tabela: ProductCategories
+
+```sql
+CREATE TABLE ProductCategories (
+    ProductCategoryID int NOT NULL,
+    CategoryName varchar(100) NOT NULL,
+    CONSTRAINT ProductCategories_pk PRIMARY KEY (ProductCategoryID)
+);
+```
+
+| Nazwa atrybutu    | Typ          | Opis/Uwagi                                              |
+| ----------------- | ------------ | ------------------------------------------------------- |
+| ProductCategoryID | int          | Klucz główny, unikalny identyfikator kategorii produktu |
+| CategoryName      | varchar(100) | Nazwa kategorii produktu                                |
+
+---
+
+### Tabela: Products
+
+```sql
+CREATE TABLE Products (
+    ProductId int NOT NULL,
+    ProductCategories_PartCategoryId int NOT NULL,
+    EstimatedProductionTime int NOT NULL,
+    CurrentSellPrice money NOT NULL,
+    CurrentProductionCost money NOT NULL,
+    Available int NOT NULL,
+    Reserved int NOT NULL,
+    MinimalQuantity int NOT NULL,
+    CONSTRAINT ProductID PRIMARY KEY (ProductId),
+    CONSTRAINT Products_ProductCategories_fk FOREIGN KEY (ProductCategories_PartCategoryId)
+        REFERENCES ProductCategories (ProductCategoryID)
+);
+```
+
+| Nazwa atrybutu                   | Typ   | Opis/Uwagi                                                              |
+| -------------------------------- | ----- | ----------------------------------------------------------------------- |
+| ProductId                        | int   | Klucz główny, unikalny identyfikator produktu                           |
+| ProductCategories_PartCategoryId | int   | Klucz obcy do tabeli ProductCategories, identyfikuje kategorię produktu |
+| EstimatedProductionTime          | int   | Szacowany czas produkcji produktu w godzinach                           |
+| CurrentSellPrice                 | money | Aktualna cena sprzedaży produktu                                        |
+| CurrentProductionCost            | money | Aktualny koszt produkcji produktu                                       |
+| Available                        | int   | Liczba dostępnych sztuk produktu na magazynie                           |
+| Reserved                         | int   | Liczba zarezerwowanych sztuk produktu                                   |
+| MinimalQuantity                  | int   | Minimalna ilość produktu, która powinna być utrzymywana na magazynie    |
+
+---
+
+### Tabela: ProductsDetails
+
+```sql
+CREATE TABLE ProductsDetails (
+    Products_ProductId int NOT NULL,
+    Parts_PartId int NOT NULL,
+    Quantity int NOT NULL,
+    CONSTRAINT ProductsDetails_pk PRIMARY KEY (Products_ProductId, Parts_PartId),
+    CONSTRAINT ProductsDetails_Products_fk FOREIGN KEY (Products_ProductId)
+        REFERENCES Products (ProductId),
+    CONSTRAINT ProductsDetails_Parts_fk FOREIGN KEY (Parts_PartId)
+        REFERENCES Parts (PartId)
+);
+```
+
+| Nazwa atrybutu     | Typ | Opis/Uwagi                                                             |
+| ------------------ | --- | ---------------------------------------------------------------------- |
+| Products_ProductId | int | Część klucza głównego, klucz obcy do tabeli Products                   |
+| Parts_PartId       | int | Część klucza głównego, klucz obcy do tabeli Parts                      |
+| Quantity           | int | Ilość danej części potrzebnej do wyprodukowania jednej sztuki produktu |
+
+\
+\
+\
+\
 (Dla każdej tabeli kod DDL wraz z zaimplementowanymi war. integralności, + ewentualnie opis, np. w formie tabelki)
 
 - kod DDL
