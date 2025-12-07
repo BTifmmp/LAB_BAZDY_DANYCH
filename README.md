@@ -40,7 +40,7 @@ Maciej Życki
   Jako kierownik produkcji chcę oszacowany czas potrzebny na wyprodukowanie produktu, aby lepiej zaplanowac rozkład produckji.
 - US-10: Zaplanowana produckja\
   Jako kierownik produkcji chcę mieć możliwość sprawdzenia mebli zaplanowanych do produckji, aby lepiej zarządzać linia produkcyjną.
-- US-11 Planowanie produckji
+- US-11 Planowanie produkcji\
   Jako kierownik produkcji chce móc planowac czas operacyjny oraz obciązenie lini produkcyjnych, aby odpowiednio rozdzielać zlecenia produckcyjne
 
 ### 4. Magazyn
