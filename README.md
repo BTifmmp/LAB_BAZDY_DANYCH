@@ -520,28 +520,136 @@ CREATE TABLE ProductsDetails (
 | Parts_PartId       | int | Część klucza głównego, klucz obcy do tabeli Parts                      |
 | Quantity           | int | Ilość danej części potrzebnej do wyprodukowania jednej sztuki produktu |
 
-\
-\
-\
-\
-(Dla każdej tabeli kod DDL wraz z zaimplementowanymi war. integralności, + ewentualnie opis, np. w formie tabelki)
+---
 
-- kod DDL
+### Tabela: ProductionOrder
 
 ```sql
-create table tab1 (
-   a int,
-   b varchar(10)
-)
+CREATE TABLE ProductionOrder (
+   ProductionOrderID int  NOT NULL IDENTITY(1, 1),
+   ProductionLineId int  NOT NULL,
+   ProductionOrderStatus int  NOT NULL,
+   ProductId int  NOT NULL,
+   Quantity int  NOT NULL CHECK (Quantity>0),
+   QuantityProduced int  NOT NULL DEFAULT 0 CHECK (QuantityProduced>=0),
+   AddedDate date  NOT NULL,
+   PlannedStartDate date  NOT NULL,
+   PlannedEndDate date  NOT NULL,
+   StartDate date  NULL,
+   EndDate date  NULL,
+   CONSTRAINT CHK_AddDate CHECK (AddedDate<=PlannedStartDate),
+   CONSTRAINT CHK_PlannedDates CHECK (PlannedStartDate<=PlannedEndDate),
+   CONSTRAINT CHK_RealDates CHECK (EndDate is Null OR StartDate<=EndDate ),
+   CONSTRAINT CHK_Quantity CHECK (QuantityProduced<=Quantity),
+   CONSTRAINT ProductionOrder_pk PRIMARY KEY  (ProductionOrderID)
+);
 ```
 
-- Opis: (opis tabeli, komentarz)
-- np.
+| Nazwa atrybutu     | Typ | Opis/Uwagi                                                             |
+| ------------------ | --- | ---------------------------------------------------------------------- |
+| ProductionOrderID | int | Klucz główny, unikalny numer zlecenia produkcyjnego |
+| ProductionLineId | int | Klucz obcy, wskazuje linię produkcyjną realizującą zlecenie |
+| ProductionOrderStatus | int | Klucz obcy, określa aktualny status zlecenia |
+| ProductId | int | Klucz obcy, identyfikuje produkowany produkt |
+| Quantity | int | Planowana ilość produktu do wyprodukowania |
+| QuantityProduced | int | Ilość produktu faktycznie wyprodukowana do tej pory |
+| AddedDate | date | Data dodania zlecenia do systemu |
+| PlannedStartDate | date | Planowana data rozpoczęcia produkcji |
+| PlannedEndDate | date | Planowana data zakończenia produkcji |
+| StartDate | date | Rzeczywista data rozpoczęcia (pole może być puste) |
+| EndDate | date | Rzeczywista data zakończenia (pole może być puste) |
+---
+
+### Tabela: ProductionLine
+
+```sql
+CREATE TABLE ProductionLine (
+   ProductionLineId int  NOT NULL IDENTITY(1, 1),
+   ProductCategoryId int  NOT NULL,
+   CONSTRAINT ProductionLine_pk PRIMARY KEY  (ProductionLineId)
+);
+```
 
 | Nazwa atrybutu | Typ | Opis/Uwagi |
-| -------------- | --- | ---------- |
-| Atrybut 1 …    |     |            |
-| Atrybut 2 …    |     |            |
+| :--- | :--- | :--- |
+| ProductionLineId | int | Klucz główny, unikalny identyfikator linii produkcyjnej |
+| ProductCategoryId | int | Klucz obcy, identyfikuje kategorię produktu przypisaną do danej linii |
+---
+
+### Tabela: ProductionHistory
+
+```sql
+CREATE TABLE ProductionHistory (
+   ProductionHistoryId int  NOT NULL IDENTITY(1, 1),
+   ProductionOrderID int  NOT NULL,
+   ProductId int  NOT NULL,
+   ProducedDate date  NOT NULL,
+   ProductionCost money  NOT NULL CHECK (ProductionCost>0),
+   CONSTRAINT ProductionHistory_pk PRIMARY KEY  (ProductionHistoryId)
+);
+```
+
+| Nazwa atrybutu | Typ | Opis/Uwagi |
+| :--- | :--- | :--- |
+| ProductionHistoryId | int | Klucz główny, unikalny identyfikator wpisu historii |
+| ProductionOrderID| int | Klucz obcy, wiąże wpis historii z konkretnym zleceniem produkcyjnym |
+| ProductId | int | Klucz obcy, identyfikuje wyprodukowany produkt |
+| ProducedDate | date | Data wyprodukowania produktu |
+| ProductionCost | money | Koszt produkcji produktu|
+---
+
+### Tabela: ProductionLineTimeAllocation
+
+```sql
+CREATE TABLE ProductionLineTimeAllocation (
+   ProductionLineTimeAllocationID int  NOT NULL IDENTITY(1),
+   ProductionLineId int  NOT NULL,
+   HoursTotal int  NOT NULL CHECK (HoursTotal>0),
+   HoursAllocated int  NOT NULL DEFAULT 0 CHECK (HoursAllocated>0),
+   Date date  NOT NULL,
+   CONSTRAINT ProductionLineTimeAllocation_pk PRIMARY KEY  (ProductionLineTimeAllocationID)
+);
+```
+
+| Nazwa atrybutu | Typ | Opis/Uwagi |
+| :--- | :--- | :--- |
+| ProductionLineTimeAllocationID | int | Klucz główny, unikalny identyfikator alokacji czasu  |
+| ProductionLineId | int | Klucz obcy, identyfikuje linię, której dotyczy alokacja |
+| HoursTotal | int | Całkowita liczba godzin dostępnych na tej linii w danym dniu |
+| HoursAllocated | int | Liczba godzin, które zostały już zaalokowane na tej linii |
+| Date | date | Data, której dotyczy alokacja czasu |
+---
+
+### Tabela: ProductionEmployees
+
+```sql
+CREATE TABLE ProductionEmployees (
+   ProductionLineId int  NOT NULL,
+   EmployeeID int  NOT NULL,
+   CONSTRAINT ProductionEmployees_pk PRIMARY KEY  (ProductionLineId,EmployeeID)
+);
+```
+
+| Nazwa atrybutu | Typ | Opis/Uwagi |
+| :--- | :--- | :--- |
+| ProductionLineId | int | Klucz główny oraz klucz obcy, identyfikuje linię produkcyjną |
+| EmployeeID | int | Klucz główny oraz klucz obcy, identyfikuje pracownika |
+---
+
+### Tabela: ProductionOrderStatus
+
+```sql
+CREATE TABLE ProductionOrderStatus (
+   ProductionOrderStatus int  NOT NULL IDENTITY(1),
+   Status varchar(20)  NOT NULL,
+   CONSTRAINT ProductionOrderStatus_pk PRIMARY KEY  (ProductionOrderStatus)
+);
+```
+
+| Nazwa atrybutu | Typ | Opis/Uwagi |
+| :--- | :--- | :--- |
+| ProductionOrderStatus | int | Klucz główny, identyfikator statusu zlecenia |
+| Status | varchar(20) | Tekstowa nazwa statusu (np. Oczekujące, W toku, Zakończone) |
 
 # 3. Widoki, procedury/funkcje, triggery
 
