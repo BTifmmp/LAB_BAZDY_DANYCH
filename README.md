@@ -72,6 +72,7 @@ Maciej Życki
 ## Opis poszczególnych tabel
 
 ### Tabela: ProductsInventoryHistory
+
 ```sql
 CREATE TABLE ProductsInventoryHistory (
    ProductsInventoryHistoryId int  NOT NULL IDENTITY(1, 1),
@@ -88,9 +89,10 @@ CREATE TABLE ProductsInventoryHistory (
 | Nazwa atrybutu             | Typ  | Opis/Uwagi                                                                               |
 | -------------------------- | ---- | ---------------------------------------------------------------------------------------- |
 | ProductsInventoryHistoryId | int  | Auto-inkrementowany klucz główny, unikalny indetyfikator operacji na magazynie produktów |
-| ProductId                  | int  | Klucz obcy, indetyfikator produktu                                                       |            
+| ProductId                  | int  | Klucz obcy, indetyfikator produktu                                                       |
 | OperationDate              | date | Data operacji                                                                            |
-| Quantity                   | int  | Ilośc produktów dostarczonych do magazynu lub z niego zabranych                          | 
+| Quantity                   | int  | Ilośc produktów dostarczonych do magazynu lub z niego zabranych                          |
+
 ### Tabela: PartsInventoryHistory
 
 ```sql
@@ -106,13 +108,16 @@ CREATE TABLE PartsInventoryHistory (
       REFERENCES Parts (PartId)
 );
 ```
-| Nazwa atrybutu        | Typ  | Opis/Uwagi                                                                              |
-| --------------------- | ---- | --------------------------------------------------------------------------------------- |
-| PartsInventoryHistory | int  | Auto-inkrementowany klucz główny, unikalny indetyfikator operacji na magazynie części   |            
-| PartID                | int  | Klucz obcy, indetyfikator części                                                        |            
-| OperationDate         | date | Data operacji                                                                           |
-| Quantity              | int  | Ilośc produktów dostarczonych do magazynu lub z niego zabranych                         | 
+
+| Nazwa atrybutu        | Typ  | Opis/Uwagi                                                                            |
+| --------------------- | ---- | ------------------------------------------------------------------------------------- |
+| PartsInventoryHistory | int  | Auto-inkrementowany klucz główny, unikalny indetyfikator operacji na magazynie części |
+| PartID                | int  | Klucz obcy, indetyfikator części                                                      |
+| OperationDate         | date | Data operacji                                                                         |
+| Quantity              | int  | Ilośc produktów dostarczonych do magazynu lub z niego zabranych                       |
+
 ### Tabela: Suppliers
+
 ```sql
 CREATE TABLE Suppliers (
    SupplierID int  NOT NULL IDENTITY(1, 1),
@@ -120,11 +125,14 @@ CREATE TABLE Suppliers (
    CONSTRAINT Suppliers_pk PRIMARY KEY  (SupplierID)
 );
 ```
+
 | Nazwa atrybutu | Typ         | Opis/Uwagi                                                        |
 | -------------- | ----------- | ----------------------------------------------------------------- |
 | SupplierID     | int         | Auto-inkrementowany klucz główny, unikalny indetyfikator dostawcy |
-| CompanyName    | varchar(50) | Nazwa dostawcy                                                    | 
+| CompanyName    | varchar(50) | Nazwa dostawcy                                                    |
+
 ### Tabela: PartsOrder
+
 ```sql
 CREATE TABLE PartsOrder (
    PartsOrderId int  NOT NULL IDENTITY(1, 1),
@@ -133,20 +141,23 @@ CREATE TABLE PartsOrder (
    ReceivedDate date  NULL,
 
    CONSTRAINT CHK_date CHECK (ReceivedDate is Null OR OrderDate<=ReceivedDate),
-   
+
    CONSTRAINT PartsOrder_pk PRIMARY KEY  (PartsOrderId),
 
    CONSTRAINT PartsOrder_Suppliers FOREIGN KEY (SupplierID)
       REFERENCES Suppliers (SupplierID)
 );
 ```
+
 | Nazwa atrybutu | Typ  | Opis/Uwagi                                                                 |
 | -------------- | ---- | -------------------------------------------------------------------------- |
-| PartsOrderID   | int  | Auto-inkrementowany klucz główny, unikalny indetyfikator zamówienia części |            
-| PartID         | int  | Klucz obcy, indetyfikator dostawcy                                         |            
+| PartsOrderID   | int  | Auto-inkrementowany klucz główny, unikalny indetyfikator zamówienia części |
+| PartID         | int  | Klucz obcy, indetyfikator dostawcy                                         |
 | OrderDate      | date | Data zamówienia                                                            |
-| ReceivedDate   | int  | Data dostarczenia zamówienia                                               | 
+| ReceivedDate   | int  | Data dostarczenia zamówienia                                               |
+
 ### Tabela: PartsOrderDetails
+
 ```sql
 CREATE TABLE PartsOrderDetails (
    PartsOrderId int  NOT NULL,
@@ -166,13 +177,16 @@ CREATE TABLE PartsOrderDetails (
       REFERENCES Parts (PartId)
 );
 ```
+
 | Nazwa atrybutu | Typ | Opis/Uwagi                                              |
 | -------------- | --- | ------------------------------------------------------- |
-| PartsOrderID   | int | Klucz główny oraz obcy, identyfiaktor zamówienia części |            
-| PartID         | int |Klucz główny oraz obcy, indetyfikator części             |            
+| PartsOrderID   | int | Klucz główny oraz obcy, identyfiaktor zamówienia części |
+| PartID         | int | Klucz główny oraz obcy, indetyfikator części            |
 | Quantity       | int | Ilość części w zamówieniu                               |
 | UnitPrice      | int | Cena jednostkowa za część                               |
+
 ### Tabela: Status
+
 ```sql
 CREATE TABLE OrderStatus (
    OrderStatusID int  NOT NULL IDENTITY(1, 1),
@@ -180,12 +194,14 @@ CREATE TABLE OrderStatus (
    CONSTRAINT OrderStatus_pk PRIMARY KEY  (OrderStatusID)
 );
 ```
-| Nazwa atrybutu | Typ        | Opis/Uwagi                                                                  |
-| -------------- | ---------- | --------------------------------------------------------------------------- |
-| StatusID       |int         | Auto-inkrementowany klucz główny, unikalny identyfikator statusu zamówienia |
-| StatusName     |varchar(20) | Nazwa statusu dla zamówień                                                  |
+
+| Nazwa atrybutu | Typ         | Opis/Uwagi                                                                  |
+| -------------- | ----------- | --------------------------------------------------------------------------- |
+| StatusID       | int         | Auto-inkrementowany klucz główny, unikalny identyfikator statusu zamówienia |
+| StatusName     | varchar(20) | Nazwa statusu dla zamówień                                                  |
 
 ### Tabela: Departments
+
 ```sql
 CREATE TABLE Departments (
    DepartmentId int  NOT NULL IDENTITY(1, 1),
@@ -193,12 +209,14 @@ CREATE TABLE Departments (
    CONSTRAINT Departments_pk PRIMARY KEY  (DepartmentId)
 );
 ```
+
 | Nazwa atrybutu | Typ         | Opis/Uwagi                                                      |
 | -------------- | ----------- | --------------------------------------------------------------- |
 | DepartmenID    | int         | Auto-inkrementowany klucz główny, unikalny identyfikator działu |
-| DepartmentName | varchar(20) | Nazwa działu                                                    | 
+| DepartmentName | varchar(20) | Nazwa działu                                                    |
 
 ### Tabela: Employees
+
 ```sql
 CREATE TABLE Employees (
    EmployeeID int  NOT NULL IDENTITY(1, 1),
@@ -219,6 +237,7 @@ CREATE TABLE Employees (
         ON DELETE  SET NULL
 );
 ```
+
 | Nazwa atrybutu | Typ         | Opis/Uwagi                                            |
 | -------------- | ----------- | ----------------------------------------------------- |
 | EmployeeID     | int         | Auto-inkrementowany klucz główny, unikalny pracownika |
@@ -229,10 +248,12 @@ CREATE TABLE Employees (
 | BirthDate      | varchar(50) | Data urodzenia pracownika                             |
 | Adress         | varchar(50) | Adres zamieszkania pracownika                         |
 | Country        | varchar(50) | Kraj zamieszkania pracownika                          |
-| City           | varchar(50) | Miasto zamieszkania pracownika                        |                    
-| Region         |varchar(50)  | Region zamieszkania pracownika                        |
+| City           | varchar(50) | Miasto zamieszkania pracownika                        |
+| Region         | varchar(50) | Region zamieszkania pracownika                        |
 | PostalCode     | varchar(20) | Kod pocztowy adresu zamieszkania pracownika           |
+
 ### Tabela: CustomerType
+
 ```sql
 CREATE TABLE CustomerType (
    TypeID int  NOT NULL IDENTITY(1, 1),
@@ -240,6 +261,7 @@ CREATE TABLE CustomerType (
    CONSTRAINT CustomerType_pk PRIMARY KEY  (TypeID)
 );
 ```
+
 | Nazwa atrybutu | Typ         | Opis/Uwagi                                                            |
 | -------------- | ----------- | --------------------------------------------------------------------- |
 | TypeID         | int         | Auto-inkrementowany klucz główny, unikalny identyfikator typu klienta |
@@ -264,6 +286,7 @@ CREATE TABLE Customers (
       REFERENCES CustomerType (TypeID)
 );
 ```
+
 | Nazwa atrybutu | Typ         | Opis/Uwagi                                                      |
 | -------------- | ----------- | --------------------------------------------------------------- |
 | CustomerID     | int         | Auto-inkrementowany klucz główny unikalny identyfikator klienta |
@@ -276,6 +299,7 @@ CREATE TABLE Customers (
 | Phone          | varchar(20) | Numer telefonu klienta                                          |
 
 ### Tabela: Orders
+
 ```sql
 CREATE TABLE Orders (
    OrderID int  NOT NULL IDENTITY(1, 1),
@@ -291,12 +315,12 @@ CREATE TABLE Orders (
    CompletionDate date  NULL,
    ShipDate date  NULL,
    CONSTRAINT Orders_pk PRIMARY KEY  (OrderID),
-   
+
    CONSTRAINT CHK_DATE CHECK ((CompletionDate is NULL OR OrderDate<=CompletionDate )  AND ( ShipDate is NULL OR CompletionDate<=ShipDate )),
 
    CONSTRAINT Orders_Status FOREIGN KEY (Status)
       REFERENCES Status (StatusID),
-    
+
    CONSTRAINT Orders_Employees FOREIGN KEY (EmployeeID)
       REFERENCES Employees (EmployeeID)
          ON DELETE  SET NULL,
@@ -306,9 +330,10 @@ CREATE TABLE Orders (
          ON DELETE  CASCADE
 );
 ```
+
 | Nazwa atrybutu | Typ         | Opis/Uwagi                                                          |
 | -------------- | ----------- | ------------------------------------------------------------------- |
-| OrderID        | int         | Auto-inkrementowany klucz główny, unikalny identyfikator zamówienia | 
+| OrderID        | int         | Auto-inkrementowany klucz główny, unikalny identyfikator zamówienia |
 | CustomerID     | int         | Klucz obcy,identyfikator klienta                                    |
 | EmployeeID     | int         | Klucz obcy,identyfikator pracownika                                 |
 | Status         | int         | Klucz obcy,identyfikator statusu                                    |
@@ -320,7 +345,9 @@ CREATE TABLE Orders (
 | OrderDate      | date        | Data zamówienia                                                     |
 | CompletionDate | date        | Data skompletowania zamówienia                                      |
 | ShipDate       | date        | Data wysłania zamówienia                                            |
+
 ### Tabela: Payments
+
 ```sql
 CREATE TABLE Payments (
    PaymentID int  NOT NULL IDENTITY(1, 1),
@@ -336,15 +363,18 @@ CREATE TABLE Payments (
          ON DELETE  CASCADE
 );
 ```
+
 | Nazwa atrybutu  | Typ         | Opis/Uwagi                                                         |
 | --------------- | ----------- | ------------------------------------------------------------------ |
 | PaymentID       | int         | Auto-inkrementowany klucz główny, unikalny identyfikator płatności |
-| OrderID         | int         | Klucz obcy,identyfikator zamówienia                                |  
+| OrderID         | int         | Klucz obcy,identyfikator zamówienia                                |
 | Amount          | money       | Kwota płatności za zamówienie                                      |
 | PaymentMethod   | varchar(20) | Metoda płatności za zamówienie                                     |
 | TransactionDate | date        | Data transakcji                                                    |
+
 ### Tabela: OrderDetails
-```sql 
+
+```sql
 CREATE TABLE OrderDetails (
    OrderID int  NOT NULL,
    ProductId int  NOT NULL,
@@ -363,25 +393,28 @@ CREATE TABLE OrderDetails (
 
 );
 ```
+
 | Nazwa atrybutu | Typ         | Opis/Uwagi                                       |
 | -------------- | ----------- | ------------------------------------------------ |
 | OrderID        | int         | Klucz obcy oraz główny ,identyfikator zamówienia |
 | ProductID      | int         | Klucz obcy oraz główny ,identyfikator produktu   |
 | Quantity       | money       | Ilość produktów w pozycji zamówienia             |
-| UnitPrice      | varchar(20) | Cena jednostkowa za produkt                      | 
+| UnitPrice      | varchar(20) | Cena jednostkowa za produkt                      |
 | Discount       | real        | Rabat na pozycje zamówienia w przedziale [0,1]   |
+
 ### Tabela: Parts
 
 ```sql
 CREATE TABLE Parts (
-    PartId int NOT NULL,
-    PartsCategories_ProductCategoryId int NOT NULL,
-    Available int NOT NULL,
-    Reserved int NOT NULL,
-    MinimalQuantity int NOT NULL,
-    CONSTRAINT Parts_pk PRIMARY KEY (PartId),
-    CONSTRAINT Parts_PartsCategories_fk FOREIGN KEY (PartsCategories_ProductCategoryId)
-        REFERENCES PartsCategories (PartCategoryId)
+    PartId int  NOT NULL IDENTITY(1, 1),
+    ProductCategoryId int  NOT NULL,
+    Available int  NOT NULL,
+    Reserved int  NOT NULL DEFAULT 0 CHECK (Reserved>=0),
+    MinimalQuantity int  NOT NULL DEFAULT 0 CHECK (MinimalQuantity>=0),
+    CONSTRAINT Parts_pk PRIMARY KEY  (PartId)
+
+    CONSTRAINT Parts_PartsCategories  FOREIGN KEY (ProductCategoryId)
+    REFERENCES PartsCategories (PartCategoryId);
 );
 ```
 
@@ -401,16 +434,16 @@ CREATE TABLE Parts (
 
 ```sql
 CREATE TABLE PartsCategories (
-    PartCategoryId int NOT NULL,
-    CategoryName varchar(100) NOT NULL,
-    CONSTRAINT PartsCategories_pk PRIMARY KEY (PartCategoryId)
+    PartCategoryId int  NOT NULL IDENTITY(1, 1),
+    CategoryName varchar(50)  NOT NULL,
+    CONSTRAINT PartsCategories_pk PRIMARY KEY  (PartCategoryId)
 );
 ```
 
-| Nazwa atrybutu | Typ          | Opis/Uwagi                                            |
-| -------------- | ------------ | ----------------------------------------------------- |
-| PartCategoryId | int          | Klucz główny, unikalny identyfikator kategorii części |
-| CategoryName   | varchar(100) | Nazwa kategorii części                                |
+| Nazwa atrybutu | Typ         | Opis/Uwagi                                            |
+| -------------- | ----------- | ----------------------------------------------------- |
+| PartCategoryId | int         | Klucz główny, unikalny identyfikator kategorii części |
+| CategoryName   | varchar(50) | Nazwa kategorii części                                |
 
 ---
 
@@ -418,16 +451,16 @@ CREATE TABLE PartsCategories (
 
 ```sql
 CREATE TABLE ProductCategories (
-    ProductCategoryID int NOT NULL,
-    CategoryName varchar(100) NOT NULL,
-    CONSTRAINT ProductCategories_pk PRIMARY KEY (ProductCategoryID)
+    ProductCategoryID int  NOT NULL IDENTITY(1, 1),
+    CategoryName varchar(50)  NOT NULL,
+    CONSTRAINT ProductCategories_pk PRIMARY KEY  (ProductCategoryID)
 );
 ```
 
-| Nazwa atrybutu    | Typ          | Opis/Uwagi                                              |
-| ----------------- | ------------ | ------------------------------------------------------- |
-| ProductCategoryID | int          | Klucz główny, unikalny identyfikator kategorii produktu |
-| CategoryName      | varchar(100) | Nazwa kategorii produktu                                |
+| Nazwa atrybutu    | Typ         | Opis/Uwagi                                              |
+| ----------------- | ----------- | ------------------------------------------------------- |
+| ProductCategoryID | int         | Klucz główny, unikalny identyfikator kategorii produktu |
+| CategoryName      | varchar(50) | Nazwa kategorii produktu                                |
 
 ---
 
@@ -435,17 +468,18 @@ CREATE TABLE ProductCategories (
 
 ```sql
 CREATE TABLE Products (
-    ProductId int NOT NULL,
-    ProductCategories_PartCategoryId int NOT NULL,
-    EstimatedProductionTime int NOT NULL,
-    CurrentSellPrice money NOT NULL,
-    CurrentProductionCost money NOT NULL,
-    Available int NOT NULL,
-    Reserved int NOT NULL,
-    MinimalQuantity int NOT NULL,
-    CONSTRAINT ProductID PRIMARY KEY (ProductId),
-    CONSTRAINT Products_ProductCategories_fk FOREIGN KEY (ProductCategories_PartCategoryId)
-        REFERENCES ProductCategories (ProductCategoryID)
+    ProductId int  NOT NULL IDENTITY(1),
+    ProductCategoryId int  NOT NULL,
+    EstimatedProductionTime int  NOT NULL CHECK (EstimatedProductionTime>0),
+    CurrentSellPrice money  NOT NULL CHECK (CurrentSellPrice>0),
+    CurrentProductionCost money  NOT NULL CHECK (CurrentProductionCost>0),
+    Available int  NOT NULL,
+    Reserved int  NOT NULL DEFAULT 0 CHECK (Reserved>=0),
+    MinimalQuantity int  NOT NULL CHECK (MinimalQuantity>=0),
+    CONSTRAINT ProductID PRIMARY KEY  (ProductId)
+
+    CONSTRAINT Products_ProductCategories FOREIGN KEY (ProductCategoryId)
+    REFERENCES ProductCategories (ProductCategoryID);
 );
 ```
 
@@ -466,14 +500,18 @@ CREATE TABLE Products (
 
 ```sql
 CREATE TABLE ProductsDetails (
-    Products_ProductId int NOT NULL,
-    Parts_PartId int NOT NULL,
-    Quantity int NOT NULL,
-    CONSTRAINT ProductsDetails_pk PRIMARY KEY (Products_ProductId, Parts_PartId),
-    CONSTRAINT ProductsDetails_Products_fk FOREIGN KEY (Products_ProductId)
-        REFERENCES Products (ProductId),
-    CONSTRAINT ProductsDetails_Parts_fk FOREIGN KEY (Parts_PartId)
-        REFERENCES Parts (PartId)
+    ProductId int  NOT NULL,
+    PartId int  NOT NULL,
+    Quantity int  NOT NULL CHECK (Quantity>0),
+    CONSTRAINT ProductsDetails_pk PRIMARY KEY  (ProductId, PartId)
+
+    CONSTRAINT ProductsDetails_Products FOREIGN KEY (ProductId)
+    REFERENCES Products (ProductId)
+    ON DELETE  CASCADE;
+
+    CONSTRAINT ProductsDetails_Parts
+    FOREIGN KEY (PartId)
+    REFERENCES Parts (PartId);
 );
 ```
 
@@ -500,7 +538,6 @@ create table tab1 (
 
 - Opis: (opis tabeli, komentarz)
 - np.
-
 
 | Nazwa atrybutu | Typ | Opis/Uwagi |
 | -------------- | --- | ---------- |
