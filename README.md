@@ -509,8 +509,7 @@ CREATE TABLE ProductsDetails (
     REFERENCES Products (ProductId)
     ON DELETE  CASCADE;
 
-    CONSTRAINT ProductsDetails_Parts
-    FOREIGN KEY (PartId)
+    CONSTRAINT ProductsDetails_Parts FOREIGN KEY (PartId)
     REFERENCES Parts (PartId);
 );
 ```
