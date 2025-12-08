@@ -79,12 +79,12 @@ CREATE TABLE ProductsInventoryHistory (
 );
 ```
 
-| Nazwa atrybutu | Typ | Opis/Uwagi |
-| -------------- | --- | ---------- |
-| ProductsInventoryHistoryId |int  | Auto-inkrementowany klucz główny, unikalny indetyfikator operacji na magazynie produktów    |            |
-| ProductId    | int|Klucz obcy, indetyfikator produktu    |            |
-| OperationDate | date | Data operacji    |
-| Quantity | int | Ilośc produktów dostarczonych do magazynu lub z niego zabranych | 
+| Nazwa atrybutu             | Typ  | Opis/Uwagi                                                                               |
+| -------------------------- | ---- | ---------------------------------------------------------------------------------------- |
+| ProductsInventoryHistoryId | int  | Auto-inkrementowany klucz główny, unikalny indetyfikator operacji na magazynie produktów |
+| ProductId                  | int  | Klucz obcy, indetyfikator produktu                                                       |            
+| OperationDate              | date | Data operacji                                                                            |
+| Quantity                   | int  | Ilośc produktów dostarczonych do magazynu lub z niego zabranych                          | 
 ### Tabela: PartsInventoryHistory
 
 ```sql
@@ -100,12 +100,12 @@ CREATE TABLE PartsInventoryHistory (
       REFERENCES Parts (PartId)
 );
 ```
-| Nazwa atrybutu | Typ | Opis/Uwagi |
-| -------------- | --- | ---------- |
-| PartsInventoryHistory | int  | Auto-inkrementowany klucz główny, unikalny indetyfikator operacji na magazynie części   |            |
-| PartID    | int| Klucz obcy, indetyfikator części    |            |
-| OperationDate | date | Data operacji    |
-| Quantity | int | Ilośc produktów dostarczonych do magazynu lub z niego zabranych | 
+| Nazwa atrybutu        | Typ  | Opis/Uwagi                                                                              |
+| --------------------- | ---- | --------------------------------------------------------------------------------------- |
+| PartsInventoryHistory | int  | Auto-inkrementowany klucz główny, unikalny indetyfikator operacji na magazynie części   |            
+| PartID                | int  | Klucz obcy, indetyfikator części                                                        |            
+| OperationDate         | date | Data operacji                                                                           |
+| Quantity              | int  | Ilośc produktów dostarczonych do magazynu lub z niego zabranych                         | 
 ### Tabela: Suppliers
 ```sql
 CREATE TABLE Suppliers (
@@ -114,10 +114,10 @@ CREATE TABLE Suppliers (
    CONSTRAINT Suppliers_pk PRIMARY KEY  (SupplierID)
 );
 ```
-| Nazwa atrybutu | Typ | Opis/Uwagi |
-| -------------- | --- | ---------- |
-| SupplierID | int  | Auto-inkrementowany klucz główny, unikalny indetyfikator dostawcy|
-| CompanyName    | varchar(50) | Nazwa dostawcy| 
+| Nazwa atrybutu | Typ         | Opis/Uwagi                                                        |
+| -------------- | ----------- | ----------------------------------------------------------------- |
+| SupplierID     | int         | Auto-inkrementowany klucz główny, unikalny indetyfikator dostawcy |
+| CompanyName    | varchar(50) | Nazwa dostawcy                                                    | 
 ### Tabela: PartsOrder
 ```sql
 CREATE TABLE PartsOrder (
@@ -134,12 +134,12 @@ CREATE TABLE PartsOrder (
       REFERENCES Suppliers (SupplierID)
 );
 ```
-| Nazwa atrybutu | Typ | Opis/Uwagi |
-| -------------- | --- | ---------- |
-| PartsOrderID | int  | Auto-inkrementowany klucz główny, unikalny indetyfikator zamówienia części   |            |
-| PartID    | int| Klucz obcy, indetyfikator dostawcy    |            |
-| OrderDate | date | Data zamówienia    |
-| ReceivedDate | int | Data dostarczenia zamówienia | 
+| Nazwa atrybutu | Typ  | Opis/Uwagi                                                                 |
+| -------------- | ---- | -------------------------------------------------------------------------- |
+| PartsOrderID   | int  | Auto-inkrementowany klucz główny, unikalny indetyfikator zamówienia części |            
+| PartID         | int  | Klucz obcy, indetyfikator dostawcy                                         |            
+| OrderDate      | date | Data zamówienia                                                            |
+| ReceivedDate   | int  | Data dostarczenia zamówienia                                               | 
 ### Tabela: PartsOrderDetails
 ```sql
 CREATE TABLE PartsOrderDetails (
@@ -160,12 +160,12 @@ CREATE TABLE PartsOrderDetails (
       REFERENCES Parts (PartId)
 );
 ```
-| Nazwa atrybutu | Typ | Opis/Uwagi |
-| -------------- | --- | ---------- |
-| PartsOrderID | int  | Klucz główny oraz obcy, identyfiaktor zamówienia części   |            |
-| PartID    | int |Klucz główny oraz obcy, indetyfikator części    |            |
-| Quantity | int | Ilość części w zamówieniu    |
-| UnitPrice | int | Cena jednostkowa za część |
+| Nazwa atrybutu | Typ | Opis/Uwagi                                              |
+| -------------- | --- | ------------------------------------------------------- |
+| PartsOrderID   | int | Klucz główny oraz obcy, identyfiaktor zamówienia części |            
+| PartID         | int |Klucz główny oraz obcy, indetyfikator części             |            
+| Quantity       | int | Ilość części w zamówieniu                               |
+| UnitPrice      | int | Cena jednostkowa za część                               |
 ### Tabela: Status
 ```sql
 CREATE TABLE OrderStatus (
@@ -174,10 +174,10 @@ CREATE TABLE OrderStatus (
    CONSTRAINT OrderStatus_pk PRIMARY KEY  (OrderStatusID)
 );
 ```
-| Nazwa atrybutu | Typ            | Opis/Uwagi |
-| -------------- | ---            | ---------- |
-| StatusID       |int             |Auto-inkrementowany klucz główny, unikalny identyfikator statusu zamówienia          |
-| StatusName     |varchar(20)     |Nazwa statusu dla zamówień            |
+| Nazwa atrybutu | Typ        | Opis/Uwagi                                                                  |
+| -------------- | ---------- | --------------------------------------------------------------------------- |
+| StatusID       |int         | Auto-inkrementowany klucz główny, unikalny identyfikator statusu zamówienia |
+| StatusName     |varchar(20) | Nazwa statusu dla zamówień                                                  |
 
 ### Tabela: Departments
 ```sql
@@ -187,10 +187,10 @@ CREATE TABLE Departments (
    CONSTRAINT Departments_pk PRIMARY KEY  (DepartmentId)
 );
 ```
-| Nazwa atrybutu | Typ | Opis/Uwagi |
-| -------------- | --- | ---------- |
-| DepartmenID   | int  |Auto-inkrementowany klucz główny, unikalny identyfikator działu           |
-| DepartmentName    |varchar(20)     |Nazwa działu             |
+| Nazwa atrybutu | Typ         | Opis/Uwagi                                                      |
+| -------------- | ----------- | --------------------------------------------------------------- |
+| DepartmenID    | int         | Auto-inkrementowany klucz główny, unikalny identyfikator działu |
+| DepartmentName | varchar(20) | Nazwa działu                                                    | 
 
 ### Tabela: Employees
 ```sql
@@ -213,19 +213,19 @@ CREATE TABLE Employees (
         ON DELETE  SET NULL
 );
 ```
-| Nazwa atrybutu | Typ | Opis/Uwagi |
-| -------------- | --- | ---------- |
-| EmployeeID    | int   | Auto-inkrementowany klucz główny, unikalny pracownika            |
-| DepartmentID    | int    | Klucz obcy,identyfikator działu        |
-| FirstName    | varchar(50)    | Imie pracownika           |
-| LastName    | varchar(50)    | Nazwisko pracownika           |
-| Title    | varchar(50)    | Stanowisko pracownika           |
-| BirthDate    | varchar(50)    | Data urodzenia pracownika            |
-| Adress    | varchar(50)    | Adres zamieszkania pracownika            |
-| Country    | varchar(50)    | Kraj zamieszkania pracownika             |
-| City    | varchar(50)    | Miasto zamieszkania pracownika            |
-| Region    |varchar(50)     | Region zamieszkania pracownika            |
-| PostalCode    | varchar(20)    | Kod pocztowy adresu zamieszkania pracownika            |
+| Nazwa atrybutu | Typ         | Opis/Uwagi                                            |
+| -------------- | ----------- | ----------------------------------------------------- |
+| EmployeeID     | int         | Auto-inkrementowany klucz główny, unikalny pracownika |
+| DepartmentID   | int         | Klucz obcy,identyfikator działu                       |
+| FirstName      | varchar(50) | Imie pracownika                                       |
+| LastName       | varchar(50) | Nazwisko pracownika                                   |
+| Title          | varchar(50) | Stanowisko pracownika                                 |
+| BirthDate      | varchar(50) | Data urodzenia pracownika                             |
+| Adress         | varchar(50) | Adres zamieszkania pracownika                         |
+| Country        | varchar(50) | Kraj zamieszkania pracownika                          |
+| City           | varchar(50) | Miasto zamieszkania pracownika                        |                    
+| Region         |varchar(50)  | Region zamieszkania pracownika                        |
+| PostalCode     | varchar(20) | Kod pocztowy adresu zamieszkania pracownika           |
 ### Tabela: CustomerType
 ```sql
 CREATE TABLE CustomerType (
@@ -234,10 +234,10 @@ CREATE TABLE CustomerType (
    CONSTRAINT CustomerType_pk PRIMARY KEY  (TypeID)
 );
 ```
-| Nazwa atrybutu | Typ | Opis/Uwagi |
-| -------------- | --- | ---------- |
-| TypeID    | int     | Auto-inkrementowany klucz główny, unikalny identyfikator typu klienta            |
-| TypeName    | varchar(50)     | Nazwa typu klienta             |
+| Nazwa atrybutu | Typ         | Opis/Uwagi                                                            |
+| -------------- | ----------- | --------------------------------------------------------------------- |
+| TypeID         | int         | Auto-inkrementowany klucz główny, unikalny identyfikator typu klienta |
+| TypeName       | varchar(50) | Nazwa typu klienta                                                    |
 
 ### Tabela: Customers
 
@@ -258,16 +258,16 @@ CREATE TABLE Customers (
       REFERENCES CustomerType (TypeID)
 );
 ```
-| Nazwa atrybutu | Typ | Opis/Uwagi |
-| -------------- | --- | ---------- |
-| CustomerID    | int   | Auto-inkrementowany klucz główny unikalny identyfikator klienta            |
-| CustomerType    | int    | Klucz obcy,identyfikator typu klienta        |
-| Adress    | varchar(50)    | Adres klienta           |
-| Country    | varchar(50)    | Kraj klienta           |
-| City    | varchar(50)    | Miasto klienta            |
-| Region    |varchar(50)     | Region klienta     |
-| PostalCode    | varchar(20)    | Kod pocztowy klienta            |
-| Phone | varchar(20) | Numer telefonu klienta|
+| Nazwa atrybutu | Typ         | Opis/Uwagi                                                      |
+| -------------- | ----------- | --------------------------------------------------------------- |
+| CustomerID     | int         | Auto-inkrementowany klucz główny unikalny identyfikator klienta |
+| CustomerType   | int         | Klucz obcy,identyfikator typu klienta                           |
+| Adress         | varchar(50) | Adres klienta                                                   |
+| Country        | varchar(50) | Kraj klienta                                                    |
+| City           | varchar(50) | Miasto klienta                                                  |
+| Region         | varchar(50) | Region klienta                                                  |
+| PostalCode     | varchar(20) | Kod pocztowy klienta                                            |
+| Phone          | varchar(20) | Numer telefonu klienta                                          |
 
 ### Tabela: Orders
 ```sql
@@ -300,20 +300,20 @@ CREATE TABLE Orders (
          ON DELETE  CASCADE
 );
 ```
-| Nazwa atrybutu | Typ | Opis/Uwagi |
-| -------------- | --- | ---------- |
-| OrderID| int  |Auto-inkrementowany klucz główny, unikalny identyfikator zamówienia | 
-| CustomerID    | int   | Klucz obcy,identyfikator klienta            |
-| EmployeeID    | int    | Klucz obcy,identyfikator pracownika        |
-| Status    | int    | Klucz obcy,identyfikator statusu           |
-| ShipAddress    | varchar(50)    | Adres wysyłki           |
-| ShipCountry    | varchar(50)    | Kraj adresu wysyłki            |
-| ShipCity    |varchar(50)     | Miasto adresu wysyłki     |
-| ShipRegion    | varchar(20)    | Region adresu wysyłki            |
-| ShipPostalCode | varchar(20) | Kod pocztowy adresu wysyłki|
-| OrderDate | date | Data zamówienia|
-| CompletionDate | date | Data skompletowania zamówienia |
-| ShipDate | date | Data wysłania zamówienia |
+| Nazwa atrybutu | Typ         | Opis/Uwagi                                                          |
+| -------------- | ----------- | ------------------------------------------------------------------- |
+| OrderID        | int         | Auto-inkrementowany klucz główny, unikalny identyfikator zamówienia | 
+| CustomerID     | int         | Klucz obcy,identyfikator klienta                                    |
+| EmployeeID     | int         | Klucz obcy,identyfikator pracownika                                 |
+| Status         | int         | Klucz obcy,identyfikator statusu                                    |
+| ShipAddress    | varchar(50) | Adres wysyłki                                                       |
+| ShipCountry    | varchar(50) | Kraj adresu wysyłki                                                 |
+| ShipCity       | varchar(50) | Miasto adresu wysyłki                                               |
+| ShipRegion     | varchar(20) | Region adresu wysyłki                                               |
+| ShipPostalCode | varchar(20) | Kod pocztowy adresu wysyłki                                         |
+| OrderDate      | date        | Data zamówienia                                                     |
+| CompletionDate | date        | Data skompletowania zamówienia                                      |
+| ShipDate       | date        | Data wysłania zamówienia                                            |
 ### Tabela: Payments
 ```sql
 CREATE TABLE Payments (
@@ -330,13 +330,13 @@ CREATE TABLE Payments (
          ON DELETE  CASCADE
 );
 ```
-| Nazwa atrybutu | Typ | Opis/Uwagi |
-| -------------- | --- | ---------- |
-| PaymentID    | int | Auto-inkrementowany klucz główny, unikalny identyfikator płatności            |
-| OrderID    | int     | Klucz obcy,identyfikator zamówienia            |
-| Amount    | money    | Kwota płatności za zamówienie          |
-| PaymentMethod    | varchar(20)    | Metoda płatności za zamówienie           |
-| TransactionDate    | date     | Data transakcji            |
+| Nazwa atrybutu  | Typ         | Opis/Uwagi                                                         |
+| --------------- | ----------- | ------------------------------------------------------------------ |
+| PaymentID       | int         | Auto-inkrementowany klucz główny, unikalny identyfikator płatności |
+| OrderID         | int         | Klucz obcy,identyfikator zamówienia                                |  
+| Amount          | money       | Kwota płatności za zamówienie                                      |
+| PaymentMethod   | varchar(20) | Metoda płatności za zamówienie                                     |
+| TransactionDate | date        | Data transakcji                                                    |
 ### Tabela: OrderDetails
 ```sql 
 CREATE TABLE OrderDetails (
@@ -357,13 +357,13 @@ CREATE TABLE OrderDetails (
 
 );
 ```
-| Nazwa atrybutu | Typ | Opis/Uwagi |
-| -------------- | --- | ---------- |
-| OrderID    | int | Klucz obcy oraz główny ,identyfikator zamówienia             |
-| ProductID    | int     | Klucz obcy oraz główny ,identyfikator produktu            |
-| Quantity    | money    | Ilość produktów w pozycji zamówienia           |
-| UnitPrice    | varchar(20)    | Cena jednostkowa za produkt            |
-| Discount    | real     | Rabat na pozycje zamówienia w przedziale [0,1]              |
+| Nazwa atrybutu | Typ         | Opis/Uwagi                                       |
+| -------------- | ----------- | ------------------------------------------------ |
+| OrderID        | int         | Klucz obcy oraz główny ,identyfikator zamówienia |
+| ProductID      | int         | Klucz obcy oraz główny ,identyfikator produktu   |
+| Quantity       | money       | Ilość produktów w pozycji zamówienia             |
+| UnitPrice      | varchar(20) | Cena jednostkowa za produkt                      | 
+| Discount       | real        | Rabat na pozycje zamówienia w przedziale [0,1]   |
 (Dla każdej tabeli kod DDL wraz z zaimplementowanymi war. integralności, + ewentualnie opis, np. w formie tabelki)
 
 - kod DDL
