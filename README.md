@@ -69,6 +69,140 @@ Maciej Życki
 
 ![schemat photo](schemat_photo.png)
 
+## Schemat dzialania produkcji
+W Tabeli produkty przechowywane są informacje o aktualnym stanie magazynowym (Available), zarezerwowanych produktach (Reserved) oraz docelowej minimalnej ilości sztuk na magazynie (MinimalQuantity).Gdy pole Available spadnie poniżej wartości MinimalQuantity składamy zamówienie na uzupełnienie braków.\
+Gdy klient składa zamówienie używamy systemu ATP (Available-to-Promise). Polega on na na obliczeniu ilości dostępnych towarów do podanej daty . Obliczane jest to wzorem:
+   - ATP=Products.Available +\
+   sum(ProductionOrder.Quantity) where PlannedEndDate<= (data podana przez klienta) -\
+   Products.Reserved\
+
+ATP informuje nas ile produktów jesteśmy w stanie dostarczyć uwzględniając aktualny stan magazynowy, produkcje które są relizowane oraz zaplanowane produkcje.
+Jeśli ATP jest mniejsze od ilości zamówionej przez klienta przechodzimy na system CTP (Capable-to-Promise). Ponieważ zakładamy że częsci są zawsze dostępne sprowadza się to do znalezienia pierwszej daty która, jest w stanie zrealizować zamówienie.  Jest on podobny do ATP ale uwzględnia możliwości produkcyjne i pozwala na zaplanowanie produkcji. Ilośc produktów potrzebnych do wyprodukowania obliczona jest przez: 
+- Required=ATP-(ilośc zamówiona przez klienta).
+
+Czas potrzebny na wyprodukowanie możemy obliczyć przez Required*Products.EstimatedProductionTime. Następnie allokujemy czas dla lini produkcyjnej do której należy produkt zaczynając od pierwszego dnia w którym linia nie jest używana przez cały dzień, data w której się to dzieje jest polem ProductionOrder.PlannedStartDate. W momencie gdy wyczerpiemy czas potrzebny na wyprodukowanie data w której się to dzieje zostaje ProductionOrder.PlannedEndDate.
+Procedura ta jest powtarzana dla każdej pozycji zamówienia. Datą dla której determinujemy czy jesteśmy w stanie zrealizować zamówienia klienta jest maksymalna data ProdcutionOrder.PlannedEndDate.
+
+### Przykład
+Załóżmy że:
+- Posiadamy 2 produkty
+- Dzisiejszą data jest 13.12.2025
+
+### Tabela: Produkty
+
+|ProductID|EstimatedProductionTime|Available|Reserved|MinimalQuantity|
+|---------|-----------------------|---------|--------|---------------|
+|1        | 2                     | 2       | 5      | 10            |
+|2        | 4                     | 3       | 6      | 10            |
+
+
+
+
+Ponieważ MinimalQuantity < Available, oznacza to że mamy 2 zamówienia w ProductionOrder.
+### Tabela: ProductionOrder
+|ProductionOrderID|ProductionLineID|ProductID|Quantity|StartDate      |PlannedEndDate         |
+|---------|----------------------- |---------|--------|---------------|-----------------------|
+|1        | 1                      | 1       | 8     | 13.12.2025    | 15.12.2025            |
+|2        | 2                      | 2       | 7     | 13.12.2025    | 16.12.2025            |
+
+### Tabela: ProductionLineTimeAllocation
+
+|ProductionLineTimeAllocationID| ProductinLineID | HoursTotal   |HoursAllocated |Date          |
+|------------------------------|---------------- |--------------|-------------- |--------------|
+| 1                            | 1               | 12           | 12            |13.12.2025    | 
+| 2                            | 2               | 12           | 12            |13.12.2025    |
+| 3                            | 1               | 0            | 0             |14.12.2025    |
+| 4                            | 2               | 0            | 0             |14.12.2025    |
+| 5                            | 1               | 12           | 4             |15.12.2025    | 
+| 6                            | 2               | 12           | 12            |15.12.2025    |  
+| 7                            | 1               | 12           | 0             |16.12.2025    |
+| 8                            | 2               | 12           | 4             |16.12.2025    |
+
+Klient składa zamówienie na:
+- 4 sztuk produktu o id=1 (Z~1~)
+- 7 sztuk produktu o id=2 (Z~2~)
+- maksymalna data podana przez klienta - 16.12.2025
+
+Policzmy ATP dla każdej pozycji zamówienia:
+- ATP~1~ = Available + sum(ProductionOrder.Quantity) - Reserved = 2 + 8 - 5 = 5
+- ATP~2~ = Available + sum(ProductionOrder.Quantity) - Reserved = 3 + 7 - 6 = 4
+
+Ponieważ ATP~1~ >= Z~1~ wiemy, że jesteśmy w w stanie dostarczyć produkty Z~1~ w czasie podanym przez klienta.\
+ Ale ATP~2~ < Z~2~, więc nie jesteśmy w stanie dostarczyć produktów do wymaganej daty bez zlecania produkcji.
+
+**Przechodzimy więc na system CTP.**\
+Sprawdzamy ile produktu nam brakuje dla Z~2~.
+- Braki = Z~2~ - ATP~2~ = 7 - 4 = 3 
+- Czas potrzebny na produkcje = 3*4 = 12.
+
+Przechodzimy przez kolejne dni sprawdzając możliwości produkcyjne dla lini na której produkowany jest potrzebny produkt, więc dla lini o id = 2, od pierwszej daty dla której jest możliwość zaalokwania czasu:
+- dnia 16.12.2025 - Dostępna ilość wynosi 8. Pozostaje nam 12 - 8 = 4
+- dnia 17.12.2025 - Dostępna ilosc godzin wynosi 12. Ponieważ 12>4 dzień ten jest datą w której skończy się produkcja.
+
+Ponieważ obliczona data końca produkcji (17.12.2025) > data podana przez klienta (16.12.2025). Nie jesteśmy w stanie wyprodukować zamówienia, więc zamówienie nie zostanie zaakceptowane.\
+Zmieńmy date podaną przez klienta na 18.12.2025. Oznacza to że obliczona data jest mniejsza. Więc akceptujemy zamówienie.\
+Modyfikujemy wartości Products.Reserved dla odpowiednich produktów:
+- id = 1: Reserved = 5 + 4 = 9
+- id = 2: Reserved = 6 + 7 = 13
+
+Dodajmy też nowe zamówienie na produkcje produktu. Stan tabeli ProductionOrder:
+### Tabela: ProductionOrder
+
+|ProductionOrderID|ProductionLineID        |ProductID|Quantity|StartDate       |PlannedStartDate       |PlannedEndDate |
+|-----------------|----------------------- |---------|--------|--------------- |-----------------------|---------------|
+|1                | 1                      | 1       | 8      | 13.12.2025     | 13.12.2025            | 15.12.2025    |
+|2                | 2                      | 2       | 7      | 13.12.2025     | 13.12.2025            | 16.12.2025    |
+|3                | 2                      | 2       | 3      | NULL           | 16.12.2025            | 17.12.2025    |
+
+
+Teraz należy sprawdzić czy zaplanowane produkty do produkcji uzupełnią nam stan magazynowy do MinimalQuantity. Robimy to licząc aktualne ATP
+- id = 1, ATP~Akt1~ = 2 + 8 - 9 = 1
+- id = 2, ATP~Akt2~ = 3 + 7 + 3 - 13 = 0
+
+Ponieważ zarówno ATP~Akt1~,ATP~Akt2~ są mniejsze od MinimalQuantity dla odpowiednich produktów. Tworzymy nowe zlecenia produkcyjne. Wymagana ilośc dla produktów to:
+- id = 1, Quantity = MinimalQuantity - ATP~Akt1~ = 10 - 1 = 9
+- id = 2 , Quantity = MinimalQuantity - ATP~Akt2~ = 10 - 0 = 10
+
+Stan tabel po całej operacji wygląda następująco:
+### Tbela: Products
+
+|ProductID|EstimatedProductionTime|Available|Reserved|MinimalQuantity|
+|---------|-----------------------|---------|--------|---------------|
+|1        | 2                     | 2       | 9       | 10            |
+|2        | 3                     | 3       | 13     | 10            |
+
+Stan tabeli ProductionOrder po złożeniu wszystkich zamówień produkcyjnych:
+### Tabela: ProductionOrder
+
+|ProductionOrderID|ProductionLineID        |ProductID|Quantity|StartDate       |PlannedStartDate       |PlannedEndDate |
+|-----------------|----------------------- |---------|--------|--------------- |-----------------------|---------------|
+|1                | 1                      | 1       | 8      | 13.12.2025     | 13.12.2025            | 15.12.2025    |
+|2                | 2                      | 2       | 7      | 13.12.2025     | 13.12.2025            | 16.12.2025    |
+|3                | 2                      | 2       | 3      | NULL           | 16.12.2025            | 17.12.2025    |
+|4                | 1                      | 1       | 9      | NULL           | 15.12.2025            | 16.12.2025    |
+|5                | 2                      | 2       | 10     | NULL           | 17.12.2025            | 20.12.2025    |
+
+Tabela zaalokowangeo czasu  dla każdej lini:
+### Tabela: ProductionLineTimeAllocation
+
+|ProductionLineTimeAllocationID| ProductinLineID | HoursTotal   |HoursAllocated |Date          |
+|------------------------------|---------------- |--------------|-------------- |--------------|
+| 1                            | 1               | 12           | 12            |13.12.2025    | 
+| 2                            | 2               | 12           | 12            |13.12.2025    |
+| 3                            | 1               | 0            | 0             |14.12.2025    |
+| 4                            | 2               | 0            | 0             |14.12.2025    |
+| 5                            | 1               | 12           | 12            |15.12.2025    | 
+| 6                            | 2               | 12           | 12            |15.12.2025    |  
+| 7                            | 1               | 12           | 10            |16.12.2025    |
+| 8                            | 2               | 12           | 12            |16.12.2025    |
+| 9                            | 2               | 12           | 12            |17.12.2025    |
+| 10                           | 2               | 12           | 12            |18.12.2025    |
+| 11                           | 2               | 12           | 12            |19.12.2025    |
+| 12                           | 2               | 12           | 8             |20.12.2025    |
+
+
+
+
 ## Opis poszczególnych tabel
 
 ### Tabela: ProductsInventoryHistory
@@ -408,6 +542,7 @@ CREATE TABLE OrderDetails (
 CREATE TABLE Parts (
     PartId int  NOT NULL IDENTITY(1, 1),
     ProductCategoryId int  NOT NULL,
+    PartName varchar(50) NOT NULL,
     Available int  NOT NULL,
     Reserved int  NOT NULL DEFAULT 0 CHECK (Reserved>=0),
     MinimalQuantity int  NOT NULL DEFAULT 0 CHECK (MinimalQuantity>=0),
@@ -468,8 +603,9 @@ CREATE TABLE ProductCategories (
 
 ```sql
 CREATE TABLE Products (
-    ProductId int  NOT NULL IDENTITY(1),
+    ProductId int  NOT NULL IDENTITY(1,1),
     ProductCategoryId int  NOT NULL,
+    ProductName varchar(50) NOT NULL,
     EstimatedProductionTime int  NOT NULL CHECK (EstimatedProductionTime>0),
     CurrentSellPrice money  NOT NULL CHECK (CurrentSellPrice>0),
     CurrentProductionCost money  NOT NULL CHECK (CurrentProductionCost>0),
