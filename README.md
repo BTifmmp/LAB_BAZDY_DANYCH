@@ -119,20 +119,20 @@ Ponieważ MinimalQuantity < Available, oznacza to że mamy 2 zamówienia w Produ
 | 8                            | 2               | 12           | 4             |16.12.2025    |
 
 Klient składa zamówienie na:
-- 4 sztuk produktu o id=1 (Z~1~)
-- 7 sztuk produktu o id=2 (Z~2~)
+- 4 sztuk produktu o id=1 (Z<sub>1</sub>)
+- 7 sztuk produktu o id=2 (Z<sub>2</sub>)
 - maksymalna data podana przez klienta - 16.12.2025
 
 Policzmy ATP dla każdej pozycji zamówienia:
-- ATP~1~ = Available + sum(ProductionOrder.Quantity) - Reserved = 2 + 8 - 5 = 5
-- ATP~2~ = Available + sum(ProductionOrder.Quantity) - Reserved = 3 + 7 - 6 = 4
+- ATP<sub>1</sub> = Available + sum(ProductionOrder.Quantity) - Reserved = 2 + 8 - 5 = 5
+- ATP<sub>2</sub> = Available + sum(ProductionOrder.Quantity) - Reserved = 3 + 7 - 6 = 4
 
-Ponieważ ATP~1~ >= Z~1~ wiemy, że jesteśmy w w stanie dostarczyć produkty Z~1~ w czasie podanym przez klienta.\
- Ale ATP~2~ < Z~2~, więc nie jesteśmy w stanie dostarczyć produktów do wymaganej daty bez zlecania produkcji.
+Ponieważ ATP<sub>1</sub> >= Z<sub>1</sub> wiemy, że jesteśmy w w stanie dostarczyć produkty Z<sub>1</sub> w czasie podanym przez klienta.\
+ Ale ATP<sub>2</sub> < Z<sub>2</sub>, więc nie jesteśmy w stanie dostarczyć produktów do wymaganej daty bez zlecania produkcji.
 
 **Przechodzimy więc na system CTP.**\
-Sprawdzamy ile produktu nam brakuje dla Z~2~.
-- Braki = Z~2~ - ATP~2~ = 7 - 4 = 3 
+Sprawdzamy ile produktu nam brakuje dla Z<sub>2</sub>.
+- Braki = Z<sub>2</sub> - ATP<sub>2</sub> = 7 - 4 = 3 
 - Czas potrzebny na produkcje = 3*4 = 12.
 
 Przechodzimy przez kolejne dni sprawdzając możliwości produkcyjne dla lini na której produkowany jest potrzebny produkt, więc dla lini o id = 2, od pierwszej daty dla której jest możliwość zaalokwania czasu:
@@ -156,12 +156,12 @@ Dodajmy też nowe zamówienie na produkcje produktu. Stan tabeli ProductionOrder
 
 
 Teraz należy sprawdzić czy zaplanowane produkty do produkcji uzupełnią nam stan magazynowy do MinimalQuantity. Robimy to licząc aktualne ATP
-- id = 1, ATP~Akt1~ = 2 + 8 - 9 = 1
-- id = 2, ATP~Akt2~ = 3 + 7 + 3 - 13 = 0
+- id = 1, ATP<sub>Akt1</sub> = 2 + 8 - 9 = 1
+- id = 2, ATP<sub>Akt2</sub> = 3 + 7 + 3 - 13 = 0
 
-Ponieważ zarówno ATP~Akt1~,ATP~Akt2~ są mniejsze od MinimalQuantity dla odpowiednich produktów. Tworzymy nowe zlecenia produkcyjne. Wymagana ilośc dla produktów to:
-- id = 1, Quantity = MinimalQuantity - ATP~Akt1~ = 10 - 1 = 9
-- id = 2 , Quantity = MinimalQuantity - ATP~Akt2~ = 10 - 0 = 10
+Ponieważ zarówno ATP<sub>Akt1</sub>,ATP<sub>Akt2</sub> są mniejsze od MinimalQuantity dla odpowiednich produktów. Tworzymy nowe zlecenia produkcyjne. Wymagana ilośc dla produktów to:
+- id = 1, Quantity = MinimalQuantity - ATP<sub>Akt1</sub> = 10 - 1 = 9
+- id = 2 , Quantity = MinimalQuantity - ATP<sub>Akt2</sub> = 10 - 0 = 10
 
 Stan tabel po całej operacji wygląda następująco:
 ### Tbela: Products
