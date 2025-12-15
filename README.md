@@ -67,7 +67,11 @@ Maciej Życki
 
 ## Schemat bazy danych
 
-![schemat photo](schemat_photo.png)
+Diagram v0\
+![schemat photo0](schemat_photo0.png)
+
+Diagram v1\
+![schemat photo1](schemat_photo1.png)
 
 ## Schemat dzialania produkcji
 
@@ -230,43 +234,6 @@ CREATE TABLE OrderStatus (
 | -------------- | ----------- | --------------------------------------------------------------------------- |
 | StatusID       | int         | Auto-inkrementowany klucz główny, unikalny identyfikator statusu zamówienia |
 | StatusName     | varchar(20) | Nazwa statusu dla zamówień                                                  |
-
-### Tabela: Employees
-
-```sql
-CREATE TABLE Employees (
-   EmployeeID int  NOT NULL IDENTITY(1, 1),
-   DepartmentId int  NULL,
-   FirstName varchar(50)  NOT NULL,
-   LastName varchar(50)  NOT NULL,
-   Title varchar(50)  NOT NULL,
-   BirthDate date  NOT NULL,
-   Address varchar(50)  NOT NULL,
-   Country varchar(50)  NOT NULL,
-   City varchar(50)  NOT NULL,
-   Region varchar(50)  NOT NULL,
-   PostalCode varchar(20)  NOT NULL,
-   CONSTRAINT Employees_pk PRIMARY KEY  (EmployeeID),
-
-   CONSTRAINT Employees_Departments FOREIGN KEY (DepartmentId)
-      REFERENCES Departments (DepartmentId)
-        ON DELETE  SET NULL
-);
-```
-
-| Nazwa atrybutu | Typ         | Opis/Uwagi                                            |
-| -------------- | ----------- | ----------------------------------------------------- |
-| EmployeeID     | int         | Auto-inkrementowany klucz główny, unikalny pracownika |
-| DepartmentID   | int         | Klucz obcy,identyfikator działu                       |
-| FirstName      | varchar(50) | Imie pracownika                                       |
-| LastName       | varchar(50) | Nazwisko pracownika                                   |
-| Title          | varchar(50) | Stanowisko pracownika                                 |
-| BirthDate      | varchar(50) | Data urodzenia pracownika                             |
-| Adress         | varchar(50) | Adres zamieszkania pracownika                         |
-| Country        | varchar(50) | Kraj zamieszkania pracownika                          |
-| City           | varchar(50) | Miasto zamieszkania pracownika                        |
-| Region         | varchar(50) | Region zamieszkania pracownika                        |
-| PostalCode     | varchar(20) | Kod pocztowy adresu zamieszkania pracownika           |
 
 ### Tabela: CustomerType
 
