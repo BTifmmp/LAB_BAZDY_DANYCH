@@ -113,7 +113,7 @@ CREATE TABLE ProductionLine (
 CREATE TABLE ProductionLineTimeAllocation (
     ProductionLineTimeAllocationID int  NOT NULL IDENTITY(1, 1),
     ProductionLineId int  NOT NULL,
-    HoursTotal int  NOT NULL CHECK (HoursTotal>0),
+    HoursTotal int  NOT NULL CHECK (HoursTotal>=0),
     HoursAllocated int  NOT NULL DEFAULT 0 CHECK (HoursAllocated>=0),
     Date date  NOT NULL,
     DowntimeHours int  NOT NULL DEFAULT 0 CHECK (DowntimeHours>=0),
