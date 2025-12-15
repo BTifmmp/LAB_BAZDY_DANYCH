@@ -67,63 +67,73 @@ Maciej Życki
 
 ## Schemat bazy danych
 
-![schemat photo](schemat_photo.png)
+Diagram v0\
+![schemat photo0](schemat_photo0.png)
+
+Diagram v1\
+![schemat photo1](schemat_photo1.png)
 
 ## Schemat dzialania produkcji
+
 W Tabeli produkty przechowywane są informacje o aktualnym stanie magazynowym (Available), zarezerwowanych produktach (Reserved) oraz docelowej minimalnej ilości sztuk na magazynie (MinimalQuantity).Gdy pole Available spadnie poniżej wartości MinimalQuantity składamy zamówienie na uzupełnienie braków.\
 Gdy klient składa zamówienie używamy systemu ATP (Available-to-Promise). Polega on na na obliczeniu ilości dostępnych towarów do podanej daty . Obliczane jest to wzorem:
-   - ATP=Products.Available +\
-   sum(ProductionOrder.Quantity) where PlannedEndDate<= (data podana przez klienta) -\
-   Products.Reserved\
+
+- ATP=Products.Available +\
+  sum(ProductionOrder.Quantity) where PlannedEndDate<= (data podana przez klienta) -\
+  Products.Reserved\
 
 ATP informuje nas ile produktów jesteśmy w stanie dostarczyć uwzględniając aktualny stan magazynowy, produkcje które są relizowane oraz zaplanowane produkcje.
-Jeśli ATP jest mniejsze od ilości zamówionej przez klienta przechodzimy na system CTP (Capable-to-Promise). Ponieważ zakładamy że częsci są zawsze dostępne sprowadza się to do znalezienia pierwszej daty która, jest w stanie zrealizować zamówienie.  Jest on podobny do ATP ale uwzględnia możliwości produkcyjne i pozwala na zaplanowanie produkcji. Ilośc produktów potrzebnych do wyprodukowania obliczona jest przez: 
+Jeśli ATP jest mniejsze od ilości zamówionej przez klienta przechodzimy na system CTP (Capable-to-Promise). Ponieważ zakładamy że częsci są zawsze dostępne sprowadza się to do znalezienia pierwszej daty która, jest w stanie zrealizować zamówienie. Jest on podobny do ATP ale uwzględnia możliwości produkcyjne i pozwala na zaplanowanie produkcji. Ilośc produktów potrzebnych do wyprodukowania obliczona jest przez:
+
 - Required=ATP-(ilośc zamówiona przez klienta).
 
-Czas potrzebny na wyprodukowanie możemy obliczyć przez Required*Products.EstimatedProductionTime. Następnie allokujemy czas dla lini produkcyjnej do której należy produkt zaczynając od pierwszego dnia w którym linia nie jest używana przez cały dzień, data w której się to dzieje jest polem ProductionOrder.PlannedStartDate. W momencie gdy wyczerpiemy czas potrzebny na wyprodukowanie data w której się to dzieje zostaje ProductionOrder.PlannedEndDate.
+Czas potrzebny na wyprodukowanie możemy obliczyć przez Required\*Products.EstimatedProductionTime. Następnie allokujemy czas dla lini produkcyjnej do której należy produkt zaczynając od pierwszego dnia w którym linia nie jest używana przez cały dzień, data w której się to dzieje jest polem ProductionOrder.PlannedStartDate. W momencie gdy wyczerpiemy czas potrzebny na wyprodukowanie data w której się to dzieje zostaje ProductionOrder.PlannedEndDate.
 Procedura ta jest powtarzana dla każdej pozycji zamówienia. Datą dla której determinujemy czy jesteśmy w stanie zrealizować zamówienia klienta jest maksymalna data ProdcutionOrder.PlannedEndDate.
 
 ### Przykład
+
 Załóżmy że:
+
 - Posiadamy 2 produkty
 - Dzisiejszą data jest 13.12.2025
 
 ### Tabela: Produkty
 
-|ProductID|EstimatedProductionTime|Available|Reserved|MinimalQuantity|
-|---------|-----------------------|---------|--------|---------------|
-|1        | 2                     | 2       | 5      | 10            |
-|2        | 4                     | 3       | 6      | 10            |
-
-
-
+| ProductID | EstimatedProductionTime | Available | Reserved | MinimalQuantity |
+| --------- | ----------------------- | --------- | -------- | --------------- |
+| 1         | 2                       | 2         | 5        | 10              |
+| 2         | 4                       | 3         | 6        | 10              |
 
 Ponieważ MinimalQuantity < Available, oznacza to że mamy 2 zamówienia w ProductionOrder.
+
 ### Tabela: ProductionOrder
-|ProductionOrderID|ProductionLineID|ProductID|Quantity|StartDate      |PlannedEndDate         |
-|---------|----------------------- |---------|--------|---------------|-----------------------|
-|1        | 1                      | 1       | 8     | 13.12.2025    | 15.12.2025            |
-|2        | 2                      | 2       | 7     | 13.12.2025    | 16.12.2025            |
+
+| ProductionOrderID | ProductionLineID | ProductID | Quantity | StartDate  | PlannedEndDate |
+| ----------------- | ---------------- | --------- | -------- | ---------- | -------------- |
+| 1                 | 1                | 1         | 8        | 13.12.2025 | 15.12.2025     |
+| 2                 | 2                | 2         | 7        | 13.12.2025 | 16.12.2025     |
 
 ### Tabela: ProductionLineTimeAllocation
 
-|ProductionLineTimeAllocationID| ProductinLineID | HoursTotal   |HoursAllocated |Date          |
-|------------------------------|---------------- |--------------|-------------- |--------------|
-| 1                            | 1               | 12           | 12            |13.12.2025    | 
-| 2                            | 2               | 12           | 12            |13.12.2025    |
-| 3                            | 1               | 0            | 0             |14.12.2025    |
-| 4                            | 2               | 0            | 0             |14.12.2025    |
-| 5                            | 1               | 12           | 4             |15.12.2025    | 
-| 6                            | 2               | 12           | 12            |15.12.2025    |  
-| 7                            | 1               | 12           | 0             |16.12.2025    |
-| 8                            | 2               | 12           | 4             |16.12.2025    |
+| ProductionLineTimeAllocationID | ProductinLineID | HoursTotal | HoursAllocated | Date       |
+| ------------------------------ | --------------- | ---------- | -------------- | ---------- |
+| 1                              | 1               | 12         | 12             | 13.12.2025 |
+| 2                              | 2               | 12         | 12             | 13.12.2025 |
+| 3                              | 1               | 0          | 0              | 14.12.2025 |
+| 4                              | 2               | 0          | 0              | 14.12.2025 |
+| 5                              | 1               | 12         | 4              | 15.12.2025 |
+| 6                              | 2               | 12         | 12             | 15.12.2025 |
+| 7                              | 1               | 12         | 0              | 16.12.2025 |
+| 8                              | 2               | 12         | 4              | 16.12.2025 |
 
 Klient składa zamówienie na:
+
 - 4 sztuk produktu o id=1 (Z<sub>1</sub>)
 - 7 sztuk produktu o id=2 (Z<sub>2</sub>)
 - maksymalna data podana przez klienta - 16.12.2025
 
 Policzmy ATP dla każdej pozycji zamówienia:
+
 - ATP<sub>1</sub> = Available + sum(ProductionOrder.Quantity) - Reserved = 2 + 8 - 5 = 5
 - ATP<sub>2</sub> = Available + sum(ProductionOrder.Quantity) - Reserved = 3 + 7 - 6 = 4
 
@@ -132,192 +142,83 @@ Ponieważ ATP<sub>1</sub> >= Z<sub>1</sub> wiemy, że jesteśmy w w stanie dosta
 
 **Przechodzimy więc na system CTP.**\
 Sprawdzamy ile produktu nam brakuje dla Z<sub>2</sub>.
-- Braki = Z<sub>2</sub> - ATP<sub>2</sub> = 7 - 4 = 3 
-- Czas potrzebny na produkcje = 3*4 = 12.
+
+- Braki = Z<sub>2</sub> - ATP<sub>2</sub> = 7 - 4 = 3
+- Czas potrzebny na produkcje = 3\*4 = 12.
 
 Przechodzimy przez kolejne dni sprawdzając możliwości produkcyjne dla lini na której produkowany jest potrzebny produkt, więc dla lini o id = 2, od pierwszej daty dla której jest możliwość zaalokwania czasu:
+
 - dnia 16.12.2025 - Dostępna ilość wynosi 8. Pozostaje nam 12 - 8 = 4
 - dnia 17.12.2025 - Dostępna ilosc godzin wynosi 12. Ponieważ 12>4 dzień ten jest datą w której skończy się produkcja.
 
 Ponieważ obliczona data końca produkcji (17.12.2025) > data podana przez klienta (16.12.2025). Nie jesteśmy w stanie wyprodukować zamówienia, więc zamówienie nie zostanie zaakceptowane.\
 Zmieńmy date podaną przez klienta na 18.12.2025. Oznacza to że obliczona data jest mniejsza. Więc akceptujemy zamówienie.\
 Modyfikujemy wartości Products.Reserved dla odpowiednich produktów:
+
 - id = 1: Reserved = 5 + 4 = 9
 - id = 2: Reserved = 6 + 7 = 13
 
 Dodajmy też nowe zamówienie na produkcje produktu. Stan tabeli ProductionOrder:
+
 ### Tabela: ProductionOrder
 
-|ProductionOrderID|ProductionLineID        |ProductID|Quantity|StartDate       |PlannedStartDate       |PlannedEndDate |
-|-----------------|----------------------- |---------|--------|--------------- |-----------------------|---------------|
-|1                | 1                      | 1       | 8      | 13.12.2025     | 13.12.2025            | 15.12.2025    |
-|2                | 2                      | 2       | 7      | 13.12.2025     | 13.12.2025            | 16.12.2025    |
-|3                | 2                      | 2       | 3      | NULL           | 16.12.2025            | 17.12.2025    |
-
+| ProductionOrderID | ProductionLineID | ProductID | Quantity | StartDate  | PlannedStartDate | PlannedEndDate |
+| ----------------- | ---------------- | --------- | -------- | ---------- | ---------------- | -------------- |
+| 1                 | 1                | 1         | 8        | 13.12.2025 | 13.12.2025       | 15.12.2025     |
+| 2                 | 2                | 2         | 7        | 13.12.2025 | 13.12.2025       | 16.12.2025     |
+| 3                 | 2                | 2         | 3        | NULL       | 16.12.2025       | 17.12.2025     |
 
 Teraz należy sprawdzić czy zaplanowane produkty do produkcji uzupełnią nam stan magazynowy do MinimalQuantity. Robimy to licząc aktualne ATP
+
 - id = 1, ATP<sub>Akt1</sub> = 2 + 8 - 9 = 1
 - id = 2, ATP<sub>Akt2</sub> = 3 + 7 + 3 - 13 = 0
 
 Ponieważ zarówno ATP<sub>Akt1</sub>,ATP<sub>Akt2</sub> są mniejsze od MinimalQuantity dla odpowiednich produktów. Tworzymy nowe zlecenia produkcyjne. Wymagana ilośc dla produktów to:
+
 - id = 1, Quantity = MinimalQuantity - ATP<sub>Akt1</sub> = 10 - 1 = 9
 - id = 2 , Quantity = MinimalQuantity - ATP<sub>Akt2</sub> = 10 - 0 = 10
 
 Stan tabel po całej operacji wygląda następująco:
+
 ### Tbela: Products
 
-|ProductID|EstimatedProductionTime|Available|Reserved|MinimalQuantity|
-|---------|-----------------------|---------|--------|---------------|
-|1        | 2                     | 2       | 9       | 10            |
-|2        | 3                     | 3       | 13     | 10            |
+| ProductID | EstimatedProductionTime | Available | Reserved | MinimalQuantity |
+| --------- | ----------------------- | --------- | -------- | --------------- |
+| 1         | 2                       | 2         | 9        | 10              |
+| 2         | 3                       | 3         | 13       | 10              |
 
 Stan tabeli ProductionOrder po złożeniu wszystkich zamówień produkcyjnych:
+
 ### Tabela: ProductionOrder
 
-|ProductionOrderID|ProductionLineID        |ProductID|Quantity|StartDate       |PlannedStartDate       |PlannedEndDate |
-|-----------------|----------------------- |---------|--------|--------------- |-----------------------|---------------|
-|1                | 1                      | 1       | 8      | 13.12.2025     | 13.12.2025            | 15.12.2025    |
-|2                | 2                      | 2       | 7      | 13.12.2025     | 13.12.2025            | 16.12.2025    |
-|3                | 2                      | 2       | 3      | NULL           | 16.12.2025            | 17.12.2025    |
-|4                | 1                      | 1       | 9      | NULL           | 15.12.2025            | 16.12.2025    |
-|5                | 2                      | 2       | 10     | NULL           | 17.12.2025            | 20.12.2025    |
+| ProductionOrderID | ProductionLineID | ProductID | Quantity | StartDate  | PlannedStartDate | PlannedEndDate |
+| ----------------- | ---------------- | --------- | -------- | ---------- | ---------------- | -------------- |
+| 1                 | 1                | 1         | 8        | 13.12.2025 | 13.12.2025       | 15.12.2025     |
+| 2                 | 2                | 2         | 7        | 13.12.2025 | 13.12.2025       | 16.12.2025     |
+| 3                 | 2                | 2         | 3        | NULL       | 16.12.2025       | 17.12.2025     |
+| 4                 | 1                | 1         | 9        | NULL       | 15.12.2025       | 16.12.2025     |
+| 5                 | 2                | 2         | 10       | NULL       | 17.12.2025       | 20.12.2025     |
 
-Tabela zaalokowangeo czasu  dla każdej lini:
+Tabela zaalokowangeo czasu dla każdej lini:
+
 ### Tabela: ProductionLineTimeAllocation
 
-|ProductionLineTimeAllocationID| ProductinLineID | HoursTotal   |HoursAllocated |Date          |
-|------------------------------|---------------- |--------------|-------------- |--------------|
-| 1                            | 1               | 12           | 12            |13.12.2025    | 
-| 2                            | 2               | 12           | 12            |13.12.2025    |
-| 3                            | 1               | 0            | 0             |14.12.2025    |
-| 4                            | 2               | 0            | 0             |14.12.2025    |
-| 5                            | 1               | 12           | 12            |15.12.2025    | 
-| 6                            | 2               | 12           | 12            |15.12.2025    |  
-| 7                            | 1               | 12           | 10            |16.12.2025    |
-| 8                            | 2               | 12           | 12            |16.12.2025    |
-| 9                            | 2               | 12           | 12            |17.12.2025    |
-| 10                           | 2               | 12           | 12            |18.12.2025    |
-| 11                           | 2               | 12           | 12            |19.12.2025    |
-| 12                           | 2               | 12           | 8             |20.12.2025    |
-
-
-
+| ProductionLineTimeAllocationID | ProductinLineID | HoursTotal | HoursAllocated | Date       |
+| ------------------------------ | --------------- | ---------- | -------------- | ---------- |
+| 1                              | 1               | 12         | 12             | 13.12.2025 |
+| 2                              | 2               | 12         | 12             | 13.12.2025 |
+| 3                              | 1               | 0          | 0              | 14.12.2025 |
+| 4                              | 2               | 0          | 0              | 14.12.2025 |
+| 5                              | 1               | 12         | 12             | 15.12.2025 |
+| 6                              | 2               | 12         | 12             | 15.12.2025 |
+| 7                              | 1               | 12         | 10             | 16.12.2025 |
+| 8                              | 2               | 12         | 12             | 16.12.2025 |
+| 9                              | 2               | 12         | 12             | 17.12.2025 |
+| 10                             | 2               | 12         | 12             | 18.12.2025 |
+| 11                             | 2               | 12         | 12             | 19.12.2025 |
+| 12                             | 2               | 12         | 8              | 20.12.2025 |
 
 ## Opis poszczególnych tabel
-
-### Tabela: ProductsInventoryHistory
-
-```sql
-CREATE TABLE ProductsInventoryHistory (
-   ProductsInventoryHistoryId int  NOT NULL IDENTITY(1, 1),
-   ProductId int  NOT NULL,
-   OperationDate date  NOT NULL,
-   Quantity int  NOT NULL,
-   CONSTRAINT ProductsInventoryHistory_pk PRIMARY KEY  (ProductsInvetoryHistoryId),
-
-   CONSTRAINT ProductsInventoryHistory_Products FOREIGN KEY (ProductId)
-      REFERENCES Products (ProductId)
-);
-```
-
-| Nazwa atrybutu             | Typ  | Opis/Uwagi                                                                               |
-| -------------------------- | ---- | ---------------------------------------------------------------------------------------- |
-| ProductsInventoryHistoryId | int  | Auto-inkrementowany klucz główny, unikalny indetyfikator operacji na magazynie produktów |
-| ProductId                  | int  | Klucz obcy, indetyfikator produktu                                                       |
-| OperationDate              | date | Data operacji                                                                            |
-| Quantity                   | int  | Ilośc produktów dostarczonych do magazynu lub z niego zabranych                          |
-
-### Tabela: PartsInventoryHistory
-
-```sql
-CREATE TABLE PartsInventoryHistory (
-   PartsInventoryHistoryId int  NOT NULL IDENTITY(1, 1),
-   PartId int  NOT NULL,
-   OperationDate date  NOT NULL,
-   Quantity int  NOT NULL,
-
-   CONSTRAINT PartsInventoryHistory_pk PRIMARY KEY  (PartsInvetoryHistoryId),
-
-   CONSTRAINT PartsInventoryHistory_Parts FOREIGN KEY (PartId)
-      REFERENCES Parts (PartId)
-);
-```
-
-| Nazwa atrybutu        | Typ  | Opis/Uwagi                                                                            |
-| --------------------- | ---- | ------------------------------------------------------------------------------------- |
-| PartsInventoryHistory | int  | Auto-inkrementowany klucz główny, unikalny indetyfikator operacji na magazynie części |
-| PartID                | int  | Klucz obcy, indetyfikator części                                                      |
-| OperationDate         | date | Data operacji                                                                         |
-| Quantity              | int  | Ilośc produktów dostarczonych do magazynu lub z niego zabranych                       |
-
-### Tabela: Suppliers
-
-```sql
-CREATE TABLE Suppliers (
-   SupplierID int  NOT NULL IDENTITY(1, 1),
-   CompanyName varchar(50)  NOT NULL,
-   CONSTRAINT Suppliers_pk PRIMARY KEY  (SupplierID)
-);
-```
-
-| Nazwa atrybutu | Typ         | Opis/Uwagi                                                        |
-| -------------- | ----------- | ----------------------------------------------------------------- |
-| SupplierID     | int         | Auto-inkrementowany klucz główny, unikalny indetyfikator dostawcy |
-| CompanyName    | varchar(50) | Nazwa dostawcy                                                    |
-
-### Tabela: PartsOrder
-
-```sql
-CREATE TABLE PartsOrder (
-   PartsOrderId int  NOT NULL IDENTITY(1, 1),
-   SupplierID int  NOT NULL,
-   OrderDate date  NOT NULL,
-   ReceivedDate date  NULL,
-
-   CONSTRAINT CHK_date CHECK (ReceivedDate is Null OR OrderDate<=ReceivedDate),
-
-   CONSTRAINT PartsOrder_pk PRIMARY KEY  (PartsOrderId),
-
-   CONSTRAINT PartsOrder_Suppliers FOREIGN KEY (SupplierID)
-      REFERENCES Suppliers (SupplierID)
-);
-```
-
-| Nazwa atrybutu | Typ  | Opis/Uwagi                                                                 |
-| -------------- | ---- | -------------------------------------------------------------------------- |
-| PartsOrderID   | int  | Auto-inkrementowany klucz główny, unikalny indetyfikator zamówienia części |
-| PartID         | int  | Klucz obcy, indetyfikator dostawcy                                         |
-| OrderDate      | date | Data zamówienia                                                            |
-| ReceivedDate   | int  | Data dostarczenia zamówienia                                               |
-
-### Tabela: PartsOrderDetails
-
-```sql
-CREATE TABLE PartsOrderDetails (
-   PartsOrderId int  NOT NULL,
-   PartId int  NOT NULL,
-   Quantity int  NOT NULL,
-   UnitPrice int  NOT NULL,
-
-   CONSTRAINT CHK_PartsOrderDetails CHECK (Quantity>0 AND UnitPrice>0),
-
-   CONSTRAINT PartsOrderDetails_pk PRIMARY KEY  (PartsOrderId,PartId),
-
-   CONSTRAINT PartsOrderDetails_PartsOrder FOREIGN KEY (PartsOrderId)
-      REFERENCES PartsOrder (PartsOrderId)
-          ON DELETE  CASCADE,
-
-   CONSTRAINT PartsOrderDetails_Parts FOREIGN KEY (PartId)
-      REFERENCES Parts (PartId)
-);
-```
-
-| Nazwa atrybutu | Typ | Opis/Uwagi                                              |
-| -------------- | --- | ------------------------------------------------------- |
-| PartsOrderID   | int | Klucz główny oraz obcy, identyfiaktor zamówienia części |
-| PartID         | int | Klucz główny oraz obcy, indetyfikator części            |
-| Quantity       | int | Ilość części w zamówieniu                               |
-| UnitPrice      | int | Cena jednostkowa za część                               |
 
 ### Tabela: Status
 
@@ -333,58 +234,6 @@ CREATE TABLE OrderStatus (
 | -------------- | ----------- | --------------------------------------------------------------------------- |
 | StatusID       | int         | Auto-inkrementowany klucz główny, unikalny identyfikator statusu zamówienia |
 | StatusName     | varchar(20) | Nazwa statusu dla zamówień                                                  |
-
-### Tabela: Departments
-
-```sql
-CREATE TABLE Departments (
-   DepartmentId int  NOT NULL IDENTITY(1, 1),
-   DepartmentName varchar(50)  NOT NULL,
-   CONSTRAINT Departments_pk PRIMARY KEY  (DepartmentId)
-);
-```
-
-| Nazwa atrybutu | Typ         | Opis/Uwagi                                                      |
-| -------------- | ----------- | --------------------------------------------------------------- |
-| DepartmenID    | int         | Auto-inkrementowany klucz główny, unikalny identyfikator działu |
-| DepartmentName | varchar(20) | Nazwa działu                                                    |
-
-### Tabela: Employees
-
-```sql
-CREATE TABLE Employees (
-   EmployeeID int  NOT NULL IDENTITY(1, 1),
-   DepartmentId int  NULL,
-   FirstName varchar(50)  NOT NULL,
-   LastName varchar(50)  NOT NULL,
-   Title varchar(50)  NOT NULL,
-   BirthDate date  NOT NULL,
-   Address varchar(50)  NOT NULL,
-   Country varchar(50)  NOT NULL,
-   City varchar(50)  NOT NULL,
-   Region varchar(50)  NOT NULL,
-   PostalCode varchar(20)  NOT NULL,
-   CONSTRAINT Employees_pk PRIMARY KEY  (EmployeeID),
-
-   CONSTRAINT Employees_Departments FOREIGN KEY (DepartmentId)
-      REFERENCES Departments (DepartmentId)
-        ON DELETE  SET NULL
-);
-```
-
-| Nazwa atrybutu | Typ         | Opis/Uwagi                                            |
-| -------------- | ----------- | ----------------------------------------------------- |
-| EmployeeID     | int         | Auto-inkrementowany klucz główny, unikalny pracownika |
-| DepartmentID   | int         | Klucz obcy,identyfikator działu                       |
-| FirstName      | varchar(50) | Imie pracownika                                       |
-| LastName       | varchar(50) | Nazwisko pracownika                                   |
-| Title          | varchar(50) | Stanowisko pracownika                                 |
-| BirthDate      | varchar(50) | Data urodzenia pracownika                             |
-| Adress         | varchar(50) | Adres zamieszkania pracownika                         |
-| Country        | varchar(50) | Kraj zamieszkania pracownika                          |
-| City           | varchar(50) | Miasto zamieszkania pracownika                        |
-| Region         | varchar(50) | Region zamieszkania pracownika                        |
-| PostalCode     | varchar(20) | Kod pocztowy adresu zamieszkania pracownika           |
 
 ### Tabela: CustomerType
 
@@ -681,19 +530,20 @@ CREATE TABLE ProductionOrder (
 );
 ```
 
-| Nazwa atrybutu     | Typ | Opis/Uwagi                                                             |
-| ------------------ | --- | ---------------------------------------------------------------------- |
-| ProductionOrderID | int | Klucz główny, unikalny numer zlecenia produkcyjnego |
-| ProductionLineId | int | Klucz obcy, wskazuje linię produkcyjną realizującą zlecenie |
-| ProductionOrderStatus | int | Klucz obcy, określa aktualny status zlecenia |
-| ProductId | int | Klucz obcy, identyfikuje produkowany produkt |
-| Quantity | int | Planowana ilość produktu do wyprodukowania |
-| QuantityProduced | int | Ilość produktu faktycznie wyprodukowana do tej pory |
-| AddedDate | date | Data dodania zlecenia do systemu |
-| PlannedStartDate | date | Planowana data rozpoczęcia produkcji |
-| PlannedEndDate | date | Planowana data zakończenia produkcji |
-| StartDate | date | Rzeczywista data rozpoczęcia (pole może być puste) |
-| EndDate | date | Rzeczywista data zakończenia (pole może być puste) |
+| Nazwa atrybutu        | Typ  | Opis/Uwagi                                                  |
+| --------------------- | ---- | ----------------------------------------------------------- |
+| ProductionOrderID     | int  | Klucz główny, unikalny numer zlecenia produkcyjnego         |
+| ProductionLineId      | int  | Klucz obcy, wskazuje linię produkcyjną realizującą zlecenie |
+| ProductionOrderStatus | int  | Klucz obcy, określa aktualny status zlecenia                |
+| ProductId             | int  | Klucz obcy, identyfikuje produkowany produkt                |
+| Quantity              | int  | Planowana ilość produktu do wyprodukowania                  |
+| QuantityProduced      | int  | Ilość produktu faktycznie wyprodukowana do tej pory         |
+| AddedDate             | date | Data dodania zlecenia do systemu                            |
+| PlannedStartDate      | date | Planowana data rozpoczęcia produkcji                        |
+| PlannedEndDate        | date | Planowana data zakończenia produkcji                        |
+| StartDate             | date | Rzeczywista data rozpoczęcia (pole może być puste)          |
+| EndDate               | date | Rzeczywista data zakończenia (pole może być puste)          |
+
 ---
 
 ### Tabela: ProductionLine
@@ -706,10 +556,11 @@ CREATE TABLE ProductionLine (
 );
 ```
 
-| Nazwa atrybutu | Typ | Opis/Uwagi |
-| :--- | :--- | :--- |
-| ProductionLineId | int | Klucz główny, unikalny identyfikator linii produkcyjnej |
+| Nazwa atrybutu    | Typ | Opis/Uwagi                                                            |
+| :---------------- | :-- | :-------------------------------------------------------------------- |
+| ProductionLineId  | int | Klucz główny, unikalny identyfikator linii produkcyjnej               |
 | ProductCategoryId | int | Klucz obcy, identyfikuje kategorię produktu przypisaną do danej linii |
+
 ---
 
 ### Tabela: ProductionHistory
@@ -725,13 +576,14 @@ CREATE TABLE ProductionHistory (
 );
 ```
 
-| Nazwa atrybutu | Typ | Opis/Uwagi |
-| :--- | :--- | :--- |
-| ProductionHistoryId | int | Klucz główny, unikalny identyfikator wpisu historii |
-| ProductionOrderID| int | Klucz obcy, wiąże wpis historii z konkretnym zleceniem produkcyjnym |
-| ProductId | int | Klucz obcy, identyfikuje wyprodukowany produkt |
-| ProducedDate | date | Data wyprodukowania produktu |
-| ProductionCost | money | Koszt produkcji produktu|
+| Nazwa atrybutu      | Typ   | Opis/Uwagi                                                          |
+| :------------------ | :---- | :------------------------------------------------------------------ |
+| ProductionHistoryId | int   | Klucz główny, unikalny identyfikator wpisu historii                 |
+| ProductionOrderID   | int   | Klucz obcy, wiąże wpis historii z konkretnym zleceniem produkcyjnym |
+| ProductId           | int   | Klucz obcy, identyfikuje wyprodukowany produkt                      |
+| ProducedDate        | date  | Data wyprodukowania produktu                                        |
+| ProductionCost      | money | Koszt produkcji produktu                                            |
+
 ---
 
 ### Tabela: ProductionLineTimeAllocation
@@ -747,29 +599,14 @@ CREATE TABLE ProductionLineTimeAllocation (
 );
 ```
 
-| Nazwa atrybutu | Typ | Opis/Uwagi |
-| :--- | :--- | :--- |
-| ProductionLineTimeAllocationID | int | Klucz główny, unikalny identyfikator alokacji czasu  |
-| ProductionLineId | int | Klucz obcy, identyfikuje linię, której dotyczy alokacja |
-| HoursTotal | int | Całkowita liczba godzin dostępnych na tej linii w danym dniu |
-| HoursAllocated | int | Liczba godzin, które zostały już zaalokowane na tej linii |
-| Date | date | Data, której dotyczy alokacja czasu |
----
+| Nazwa atrybutu                 | Typ  | Opis/Uwagi                                                   |
+| :----------------------------- | :--- | :----------------------------------------------------------- |
+| ProductionLineTimeAllocationID | int  | Klucz główny, unikalny identyfikator alokacji czasu          |
+| ProductionLineId               | int  | Klucz obcy, identyfikuje linię, której dotyczy alokacja      |
+| HoursTotal                     | int  | Całkowita liczba godzin dostępnych na tej linii w danym dniu |
+| HoursAllocated                 | int  | Liczba godzin, które zostały już zaalokowane na tej linii    |
+| Date                           | date | Data, której dotyczy alokacja czasu                          |
 
-### Tabela: ProductionEmployees
-
-```sql
-CREATE TABLE ProductionEmployees (
-   ProductionLineId int  NOT NULL,
-   EmployeeID int  NOT NULL,
-   CONSTRAINT ProductionEmployees_pk PRIMARY KEY  (ProductionLineId,EmployeeID)
-);
-```
-
-| Nazwa atrybutu | Typ | Opis/Uwagi |
-| :--- | :--- | :--- |
-| ProductionLineId | int | Klucz główny oraz klucz obcy, identyfikuje linię produkcyjną |
-| EmployeeID | int | Klucz główny oraz klucz obcy, identyfikuje pracownika |
 ---
 
 ### Tabela: ProductionOrderStatus
@@ -782,10 +619,10 @@ CREATE TABLE ProductionOrderStatus (
 );
 ```
 
-| Nazwa atrybutu | Typ | Opis/Uwagi |
-| :--- | :--- | :--- |
-| ProductionOrderStatus | int | Klucz główny, identyfikator statusu zlecenia |
-| Status | varchar(20) | Tekstowa nazwa statusu (np. Oczekujące, W toku, Zakończone) |
+| Nazwa atrybutu        | Typ         | Opis/Uwagi                                                  |
+| :-------------------- | :---------- | :---------------------------------------------------------- |
+| ProductionOrderStatus | int         | Klucz główny, identyfikator statusu zlecenia                |
+| Status                | varchar(20) | Tekstowa nazwa statusu (np. Oczekujące, W toku, Zakończone) |
 
 # 3. Widoki, procedury/funkcje, triggery
 
