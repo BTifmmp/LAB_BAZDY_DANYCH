@@ -62,150 +62,33 @@ Diagram v0\
 Diagram v1\
 ![schemat photo1](schemat_photo1.png)
 
-## Schemat dzialania produkcji
+## Schemat dzialania zamówień
 
-W Tabeli produkty przechowywane są informacje o aktualnym stanie magazynowym (Available), zarezerwowanych produktach (Reserved) oraz docelowej minimalnej ilości sztuk na magazynie (MinimalQuantity).Gdy pole Available spadnie poniżej wartości MinimalQuantity składamy zamówienie na uzupełnienie braków.\
-Gdy klient składa zamówienie używamy systemu ATP (Available-to-Promise). Polega on na na obliczeniu ilości dostępnych towarów do podanej daty . Obliczane jest to wzorem:
+W Tabeli Products przechowywane są informacje o aktualnym stanie magazynowym (Available), zarezerwowanych produktach (Reserved) oraz docelowej minimalnej ilości sztuk na magazynie (MinimalQuantity).Gdy pole Available-Reserved spadnie poniżej wartości MinimalQuantity, sprawdzamy czy nie ma aktualnie Production Order na te produkty. Jeśli nie ma tworzymy nowe Production Order, które uzupełni braki. 
 
-- ATP=Products.Available +\
-  sum(ProductionOrder.Quantity) where PlannedEndDate<= (data podana przez klienta) -\
-  Products.Reserved\
+Załóżmy sytuacje że, klient zamówił:
+- n sztuk produktu o id = 1
+- k sztuk produktu o id = 2
 
-ATP informuje nas ile produktów jesteśmy w stanie dostarczyć uwzględniając aktualny stan magazynowy, produkcje które są relizowane oraz zaplanowane produkcje.
-Jeśli ATP jest mniejsze od ilości zamówionej przez klienta przechodzimy na system CTP (Capable-to-Promise). Ponieważ zakładamy że częsci są zawsze dostępne sprowadza się to do znalezienia pierwszej daty która, jest w stanie zrealizować zamówienie. Jest on podobny do ATP ale uwzględnia możliwości produkcyjne i pozwala na zaplanowanie produkcji. Ilośc produktów potrzebnych do wyprodukowania obliczona jest przez:
+Sprawdzamy aktualne stany magazynowe przez obliczenie Available-Reserved.\
+Jeśli ta wartość jest większa niż n oraz k możemy wysłać te produkty natychmiastowo.\
+Jeśli brakuje nam produktów na jakąkolwiek pozycje zamówienia, zwiększamy wartość Reserved we wszystkich produktach o ilość sztuk zamówionego produktu.\
+Załóżmy, że brakuje nam q sztuk produktu.
+Sprawdzamy czy jesteśmy w stanie wyprodukować q sztuk do daty maksymalnego czekania podanej przez klienta.
+Na początku sprawdzamy czy mamy jakieś Production Order, które nie mają QuantityAllocated=Quantity.
+Dla każdego takiego Production Order przekierowujemy produkcje, która miała uzupełnić braki na nowe zamówienie klienta. Robiąc to kontrolujemy czas w którym wyprodukowane są brakujące produkty. Jeśli Production Order nie jest w stanie wypełnić zamówienia klienta  cała jego pozostała produkcja (Quantity-QuantityAllocated) zostaje zarezerwowana przez nowe zamówienie. Robimy to do momentu aż skończą się Production Order z QuantityAllocated < Quantity lub gdy w całości zaspokoimy zapotrzebowanie na ten produkt lub przekroczymy date podaną przez klienta.
+ Gdy natrafimy na Production Order, które w całości jest w stanie pokryć zapotrzebowanie na wymaganą liczbę produktów obliczamy przybliżoną date wyprodukowania ich. To zamówienie mogło wczesniej mieć zaalokowane produkty dla innego zamówienia. Więc sprawdzamy kiedy wyprodukujemy q sztuk + QuantityAllocated. Jeśli zamówienie było już w produkcji pobieramy dane z ProductionHistory.
+Jeśli nie ma wpisu z dnia, który nas interesuje sprawdzamy szacunkową ilość wyprodukowanego produktu w ten dzień, uwzględniając godziny przestoju lini (DowntimeHours).
+Dzień w którym wyprodukujemy więcej lub tyle samo sztuk produktu co q+QuantityAllocated, jest dniem w którym możemy wysłać ten produkt.
+Załóżmy, że nie byliśmy w stanie znaleźć q sztuk do przekierowania. Po całej operacji zostaje nam x sztuk, których klient oczekuje.
+ Tworzymy nowe zlecenie na x sztuk z QuantityAllocated=x, informuje to system, że ten Production Order jest stworzony na uzupełnienie jakiegoś zamówienia i nie możemy przekierować z niego żadnego produktu. Tworząc ProductionOrder sprawdzamy czy nie zostanie przekroczona data podana przez klienta.
+Gdy spełnimy wszystkie te warunki możemy przyjąć zamówienie.
 
-- Required=ATP-(ilośc zamówiona przez klienta).
+Każdy wpis w Production History, który zawiera Rejected Quantity przesuwa wszystkie trwające oraz zaplanowane produkcje na lini o RejectedQuantity*EstimatedProductionTime w przód
 
-Czas potrzebny na wyprodukowanie możemy obliczyć przez Required\*Products.EstimatedProductionTime. Następnie allokujemy czas dla lini produkcyjnej do której należy produkt zaczynając od pierwszego dnia w którym linia nie jest używana przez cały dzień, data w której się to dzieje jest polem ProductionOrder.PlannedStartDate. W momencie gdy wyczerpiemy czas potrzebny na wyprodukowanie data w której się to dzieje zostaje ProductionOrder.PlannedEndDate.
-Procedura ta jest powtarzana dla każdej pozycji zamówienia. Datą dla której determinujemy czy jesteśmy w stanie zrealizować zamówienia klienta jest maksymalna data ProdcutionOrder.PlannedEndDate.
+### Schemat działania produkcji
 
-### Przykład
-
-Załóżmy że:
-
-- Posiadamy 2 produkty
-- Dzisiejszą data jest 13.12.2025
-
-### Tabela: Produkty
-
-| ProductID | EstimatedProductionTime | Available | Reserved | MinimalQuantity |
-| --------- | ----------------------- | --------- | -------- | --------------- |
-| 1         | 2                       | 2         | 5        | 10              |
-| 2         | 4                       | 3         | 6        | 10              |
-
-Ponieważ MinimalQuantity < Available, oznacza to że mamy 2 zamówienia w ProductionOrder.
-
-### Tabela: ProductionOrder
-
-| ProductionOrderID | ProductionLineID | ProductID | Quantity | StartDate  | PlannedEndDate |
-| ----------------- | ---------------- | --------- | -------- | ---------- | -------------- |
-| 1                 | 1                | 1         | 8        | 13.12.2025 | 15.12.2025     |
-| 2                 | 2                | 2         | 7        | 13.12.2025 | 16.12.2025     |
-
-### Tabela: ProductionLineTimeAllocation
-
-| ProductionLineTimeAllocationID | ProductinLineID | HoursTotal | HoursAllocated | Date       |
-| ------------------------------ | --------------- | ---------- | -------------- | ---------- |
-| 1                              | 1               | 12         | 12             | 13.12.2025 |
-| 2                              | 2               | 12         | 12             | 13.12.2025 |
-| 3                              | 1               | 0          | 0              | 14.12.2025 |
-| 4                              | 2               | 0          | 0              | 14.12.2025 |
-| 5                              | 1               | 12         | 4              | 15.12.2025 |
-| 6                              | 2               | 12         | 12             | 15.12.2025 |
-| 7                              | 1               | 12         | 0              | 16.12.2025 |
-| 8                              | 2               | 12         | 4              | 16.12.2025 |
-
-Klient składa zamówienie na:
-
-- 4 sztuk produktu o id=1 (Z<sub>1</sub>)
-- 7 sztuk produktu o id=2 (Z<sub>2</sub>)
-- maksymalna data podana przez klienta - 16.12.2025
-
-Policzmy ATP dla każdej pozycji zamówienia:
-
-- ATP<sub>1</sub> = Available + sum(ProductionOrder.Quantity) - Reserved = 2 + 8 - 5 = 5
-- ATP<sub>2</sub> = Available + sum(ProductionOrder.Quantity) - Reserved = 3 + 7 - 6 = 4
-
-Ponieważ ATP<sub>1</sub> >= Z<sub>1</sub> wiemy, że jesteśmy w w stanie dostarczyć produkty Z<sub>1</sub> w czasie podanym przez klienta.\
- Ale ATP<sub>2</sub> < Z<sub>2</sub>, więc nie jesteśmy w stanie dostarczyć produktów do wymaganej daty bez zlecania produkcji.
-
-**Przechodzimy więc na system CTP.**\
-Sprawdzamy ile produktu nam brakuje dla Z<sub>2</sub>.
-
-- Braki = Z<sub>2</sub> - ATP<sub>2</sub> = 7 - 4 = 3
-- Czas potrzebny na produkcje = 3\*4 = 12.
-
-Przechodzimy przez kolejne dni sprawdzając możliwości produkcyjne dla lini na której produkowany jest potrzebny produkt, więc dla lini o id = 2, od pierwszej daty dla której jest możliwość zaalokwania czasu:
-
-- dnia 16.12.2025 - Dostępna ilość wynosi 8. Pozostaje nam 12 - 8 = 4
-- dnia 17.12.2025 - Dostępna ilosc godzin wynosi 12. Ponieważ 12>4 dzień ten jest datą w której skończy się produkcja.
-
-Ponieważ obliczona data końca produkcji (17.12.2025) > data podana przez klienta (16.12.2025). Nie jesteśmy w stanie wyprodukować zamówienia, więc zamówienie nie zostanie zaakceptowane.\
-Zmieńmy date podaną przez klienta na 18.12.2025. Oznacza to że obliczona data jest mniejsza. Więc akceptujemy zamówienie.\
-Modyfikujemy wartości Products.Reserved dla odpowiednich produktów:
-
-- id = 1: Reserved = 5 + 4 = 9
-- id = 2: Reserved = 6 + 7 = 13
-
-Dodajmy też nowe zamówienie na produkcje produktu. Stan tabeli ProductionOrder:
-
-### Tabela: ProductionOrder
-
-| ProductionOrderID | ProductionLineID | ProductID | Quantity | StartDate  | PlannedStartDate | PlannedEndDate |
-| ----------------- | ---------------- | --------- | -------- | ---------- | ---------------- | -------------- |
-| 1                 | 1                | 1         | 8        | 13.12.2025 | 13.12.2025       | 15.12.2025     |
-| 2                 | 2                | 2         | 7        | 13.12.2025 | 13.12.2025       | 16.12.2025     |
-| 3                 | 2                | 2         | 3        | NULL       | 16.12.2025       | 17.12.2025     |
-
-Teraz należy sprawdzić czy zaplanowane produkty do produkcji uzupełnią nam stan magazynowy do MinimalQuantity. Robimy to licząc aktualne ATP
-
-- id = 1, ATP<sub>Akt1</sub> = 2 + 8 - 9 = 1
-- id = 2, ATP<sub>Akt2</sub> = 3 + 7 + 3 - 13 = 0
-
-Ponieważ zarówno ATP<sub>Akt1</sub>,ATP<sub>Akt2</sub> są mniejsze od MinimalQuantity dla odpowiednich produktów. Tworzymy nowe zlecenia produkcyjne. Wymagana ilośc dla produktów to:
-
-- id = 1, Quantity = MinimalQuantity - ATP<sub>Akt1</sub> = 10 - 1 = 9
-- id = 2 , Quantity = MinimalQuantity - ATP<sub>Akt2</sub> = 10 - 0 = 10
-
-Stan tabel po całej operacji wygląda następująco:
-
-### Tbela: Products
-
-| ProductID | EstimatedProductionTime | Available | Reserved | MinimalQuantity |
-| --------- | ----------------------- | --------- | -------- | --------------- |
-| 1         | 2                       | 2         | 9        | 10              |
-| 2         | 3                       | 3         | 13       | 10              |
-
-Stan tabeli ProductionOrder po złożeniu wszystkich zamówień produkcyjnych:
-
-### Tabela: ProductionOrder
-
-| ProductionOrderID | ProductionLineID | ProductID | Quantity | StartDate  | PlannedStartDate | PlannedEndDate |
-| ----------------- | ---------------- | --------- | -------- | ---------- | ---------------- | -------------- |
-| 1                 | 1                | 1         | 8        | 13.12.2025 | 13.12.2025       | 15.12.2025     |
-| 2                 | 2                | 2         | 7        | 13.12.2025 | 13.12.2025       | 16.12.2025     |
-| 3                 | 2                | 2         | 3        | NULL       | 16.12.2025       | 17.12.2025     |
-| 4                 | 1                | 1         | 9        | NULL       | 15.12.2025       | 16.12.2025     |
-| 5                 | 2                | 2         | 10       | NULL       | 17.12.2025       | 20.12.2025     |
-
-Tabela zaalokowangeo czasu dla każdej lini:
-
-### Tabela: ProductionLineTimeAllocation
-
-| ProductionLineTimeAllocationID | ProductinLineID | HoursTotal | HoursAllocated | Date       |
-| ------------------------------ | --------------- | ---------- | -------------- | ---------- |
-| 1                              | 1               | 12         | 12             | 13.12.2025 |
-| 2                              | 2               | 12         | 12             | 13.12.2025 |
-| 3                              | 1               | 0          | 0              | 14.12.2025 |
-| 4                              | 2               | 0          | 0              | 14.12.2025 |
-| 5                              | 1               | 12         | 12             | 15.12.2025 |
-| 6                              | 2               | 12         | 12             | 15.12.2025 |
-| 7                              | 1               | 12         | 10             | 16.12.2025 |
-| 8                              | 2               | 12         | 12             | 16.12.2025 |
-| 9                              | 2               | 12         | 12             | 17.12.2025 |
-| 10                             | 2               | 12         | 12             | 18.12.2025 |
-| 11                             | 2               | 12         | 12             | 19.12.2025 |
-| 12                             | 2               | 12         | 8              | 20.12.2025 |
+W tabeli ProductionLineTimeAllocation przechowujemy informacje o wykorzystaniu danej lini w dany dzień. Gdy tworzymy nowe zamówienie, które będzie produkowane przez wiele dni sprawdzamy ile godzin w konkretnie dni linia może pracować oraz rezerwujemy je w całości. Pozwala to oszacować date zakończenia produkcji. 
 
 ## Opis poszczególnych tabel
 
@@ -499,6 +382,7 @@ CREATE TABLE ProductsDetails (
 ### Tabela: ProductionOrder
 
 ```sql
+
 CREATE TABLE ProductionOrder (
    ProductionOrderID int  NOT NULL IDENTITY(1, 1),
    ProductionLineId int  NOT NULL,
@@ -506,32 +390,36 @@ CREATE TABLE ProductionOrder (
    ProductId int  NOT NULL,
    Quantity int  NOT NULL CHECK (Quantity>0),
    QuantityProduced int  NOT NULL DEFAULT 0 CHECK (QuantityProduced>=0),
+   QuantityAllocated int  NOT NULL DEFAULT 0 CHECK (QuantityAllocated>=0),
    AddedDate date  NOT NULL,
-   PlannedStartDate date  NOT NULL,
-   PlannedEndDate date  NOT NULL,
-   StartDate date  NULL,
-   EndDate date  NULL,
+   PlannedStartDate datetime  NOT NULL,
+   PlannedEndDate datetime  NOT NULL,
+   StartDate datetime  NULL,
+   EndDate datetime  NULL,
    CONSTRAINT CHK_AddDate CHECK (AddedDate<=PlannedStartDate),
    CONSTRAINT CHK_PlannedDates CHECK (PlannedStartDate<=PlannedEndDate),
    CONSTRAINT CHK_RealDates CHECK (EndDate is Null OR StartDate<=EndDate ),
-   CONSTRAINT CHK_Quantity CHECK (QuantityProduced<=Quantity),
+   CONSTRAINT CHK_QuantityAllocated_Quantity CHECK (Quantity>=QuantityAllocated),
    CONSTRAINT ProductionOrder_pk PRIMARY KEY  (ProductionOrderID)
 );
+
+
 ```
 
-| Nazwa atrybutu        | Typ  | Opis/Uwagi                                                  |
-| --------------------- | ---- | ----------------------------------------------------------- |
-| ProductionOrderID     | int  | Klucz główny, unikalny numer zlecenia produkcyjnego         |
-| ProductionLineId      | int  | Klucz obcy, wskazuje linię produkcyjną realizującą zlecenie |
-| ProductionOrderStatus | int  | Klucz obcy, określa aktualny status zlecenia                |
-| ProductId             | int  | Klucz obcy, identyfikuje produkowany produkt                |
-| Quantity              | int  | Planowana ilość produktu do wyprodukowania                  |
-| QuantityProduced      | int  | Ilość produktu faktycznie wyprodukowana do tej pory         |
-| AddedDate             | date | Data dodania zlecenia do systemu                            |
-| PlannedStartDate      | date | Planowana data rozpoczęcia produkcji                        |
-| PlannedEndDate        | date | Planowana data zakończenia produkcji                        |
-| StartDate             | date | Rzeczywista data rozpoczęcia (pole może być puste)          |
-| EndDate               | date | Rzeczywista data zakończenia (pole może być puste)          |
+| Nazwa atrybutu        | Typ  | Opis/Uwagi                                                   |
+| --------------------- | ---- | ------------------------------------------------------------ |
+| ProductionOrderID     | int  | Klucz główny, unikalny numer zlecenia produkcyjnego          |
+| ProductionLineId      | int  | Klucz obcy, wskazuje linię produkcyjną realizującą zlecenie  |
+| ProductionOrderStatus | int  | Klucz obcy, określa aktualny status zlecenia                 |
+| ProductId             | int  | Klucz obcy, identyfikuje produkowany produkt                 |
+| Quantity              | int  | Planowana ilość produktu do wyprodukowania                   |
+| QuantityProduced      | int  | Ilość produktu faktycznie wyprodukowana do tej pory          |
+| QuantityAllocated     | int  | Ilość produktu który został przekierowany na inne zamówienia |
+| AddedDate             | date | Data dodania zlecenia do systemu                             |
+| PlannedStartDate      | date | Planowana data rozpoczęcia produkcji                         |
+| PlannedEndDate        | date | Planowana data zakończenia produkcji                         |
+| StartDate             | date | Rzeczywista data rozpoczęcia (pole może być puste)           |
+| EndDate               | date | Rzeczywista data zakończenia (pole może być puste)           |
 
 ---
 
@@ -582,25 +470,35 @@ CREATE TABLE ProductionHistory (
 ### Tabela: ProductionLineTimeAllocation
 
 ```sql
+
 CREATE TABLE ProductionLineTimeAllocation (
-   ProductionLineTimeAllocationID int  NOT NULL IDENTITY(1),
+   ProductionLineTimeAllocationID int  NOT NULL IDENTITY(1, 1),
    ProductionLineId int  NOT NULL,
-   HoursTotal int  NOT NULL CHECK (HoursTotal>0),
-   HoursAllocated int  NOT NULL DEFAULT 0 CHECK (HoursAllocated>0),
-   DowntimeHours int NOT NULL DEFAULT 0 CHECK (HoursAllocated>=0),
+   HoursTotal decimal(6,2)  NOT NULL CHECK (HoursTotal>=0),
+   HoursAllocated decimal(6,2)  NOT NULL DEFAULT 0 CHECK (HoursAllocated>=0),
    Date date  NOT NULL,
+   DowntimeHours int  NOT NULL DEFAULT 0 CHECK (DowntimeHours>=0),
+   ShiftStart time(0)  NOT NULL,
+   ShiftEnd time(0)  NOT NULL,
+   CONSTRAINT ProductionLine_Date UNIQUE (ProductionLineId, Date),
+   CONSTRAINT CK_hours CHECK (HoursTotal>=HoursAllocated),
+   CONSTRAINT CK_Shift CHECK (ShiftStart<=ShiftEnd),
    CONSTRAINT ProductionLineTimeAllocation_pk PRIMARY KEY  (ProductionLineTimeAllocationID)
 );
+
 ```
 
-| Nazwa atrybutu                 | Typ  | Opis/Uwagi                                                      |
-| :----------------------------- | :--- | :-------------------------------------------------------------- |
-| ProductionLineTimeAllocationID | int  | Klucz główny, unikalny identyfikator alokacji czasu             |
-| ProductionLineId               | int  | Klucz obcy, identyfikuje linię, której dotyczy alokacja         |
-| HoursTotal                     | int  | Całkowita liczba godzin dostępnych na tej linii w danym dniu    |
-| HoursAllocated                 | int  | Liczba godzin, które zostały już zaalokowane na tej linii       |
-| DowntimeHours                  | int  | Liczba godzin straconych przez wadliwe produkty i problemy lini |
-| Date                           | date | Data, której dotyczy alokacja czasu                             |
+| Nazwa atrybutu                 | Typ  | Opis/Uwagi                                                               |
+| :----------------------------- | :--- | :----------------------------------------------------------------------- |
+| ProductionLineTimeAllocationID | int  | Klucz główny, unikalny identyfikator alokacji czasu                      |
+| ProductionLineId               | int  | Klucz obcy, identyfikuje linię, której dotyczy alokacja                  |
+| HoursTotal                     | decimal(6,2)  | Całkowita liczba godzin dostępnych na tej linii w danym dniu    |
+| HoursAllocated                 | decimal(6,2)  | Liczba godzin, które zostały już zaalokowane na tej linii       |
+| Date                           | date | Data, której dotyczy alokacja czasu                                      |
+| DowntimeHours                  | int  | Liczba godzin straconych przez wadliwe produkty i problemy lini          |
+| ShiftStart                     | time(0)| Godzina w której linia rozpoczyna prace                                |
+| ShiftEnd                       | time(0)| Godzina w której linia kończy pracę                                    |
+
 
 ---
 
@@ -608,16 +506,35 @@ CREATE TABLE ProductionLineTimeAllocation (
 
 ```sql
 CREATE TABLE ProductionOrderStatus (
-   ProductionOrderStatus int  NOT NULL IDENTITY(1),
+   ProductionOrderStatus int  NOT NULL IDENTITY(1,1),
    Status varchar(20)  NOT NULL,
    CONSTRAINT ProductionOrderStatus_pk PRIMARY KEY  (ProductionOrderStatus)
 );
 ```
-
 | Nazwa atrybutu        | Typ         | Opis/Uwagi                                                  |
 | :-------------------- | :---------- | :---------------------------------------------------------- |
 | ProductionOrderStatus | int         | Klucz główny, identyfikator statusu zlecenia                |
 | Status                | varchar(20) | Tekstowa nazwa statusu (np. Oczekujące, W toku, Zakończone) |
+### Tabela: ProductReservation
+```sql
+CREATE TABLE ProductReservation (
+   ProductID int  NOT NULL,
+   OrderID int  NOT NULL,
+   Quantity int  NOT NULL CHECK (Quantity>0),
+   CONSTRAINT ProductReservation_pk PRIMARY KEY  (ProductID,OrderID),
+   CONSTRAINT OrdersReservation_Products FOREIGN KEY (ProductID)
+      REFERENCES Products (ProductId);
+   CONSTRAINT OrdersReservation_Orders FOREIGN KEY (OrderID)
+      REFERENCES Orders (OrderID);
+);
+```
+| Nazwa atrybutu        | Typ         | Opis/Uwagi                                                  |
+| :-------------------- | :---------- | :---------------------------------------------------------- |
+| Product | int         | Klucz główny, identyfikator statusu zlecenia                |
+| Status                | varchar(20) | Tekstowa nazwa statusu (np. Oczekujące, W toku, Zakończone) |
+
+
+
 
 # 3. Widoki, procedury/funkcje, triggery
 
@@ -635,9 +552,323 @@ select a from tab1
 
 (dla każdej procedury/funkcji należy wkleić kod polecenia definiującego procedurę wraz z komentarzem)
 
+
+### Procedura: RedirectAndCreateNewOrder
 ```sql
--- ...
+CREATE procedure RedirectAndCreateNewOrder
+@ProductID int ,
+@EndDate date,
+@Quantity int,
+@CalculatedDate date output
+as
+    set nocount on
+    DECLARE @UnitProductionTime decimal(3,1)
+    DECLARE @ProductionLineID int
+
+    select
+           @UnitProductionTime=EstimatedProductionTime,
+           @ProductionLineID=ProductionLineId
+    from Products p
+    inner join ProductCategories cat on p.ProductCategoryId = cat.ProductCategoryID
+    inner join ProductionLine pt on cat.ProductCategoryID = pt.ProductCategoryId
+    Where ProductId=@ProductID
+
+--     ----------------------------------------------
+--      Try to redirect existing Production Orders
+--     ----------------------------------------------
+    Declare @CandidateOrders table(
+        RowID int identity(1,1),
+        ProductionOrderID int,
+        AvailableQuantity int,
+        PlannedEndDate date,
+        QuantityToUse int
+    );
+
+    INSERT INTO @CandidateOrders(ProductionOrderID, AvailableQuantity, PlannedEndDate)
+    select ProductionOrderID,Quantity-QuantityAllocated,PlannedEndDate
+    from ProductionOrder po
+    inner join ProductionOrderStatus ps on po.ProductionOrderStatus = ps.ProductionOrderStatus
+    where
+        Quantity>QuantityAllocated and
+        Status<>'Gotowe' and
+        ProductId=@ProductID and
+        PlannedStartDate<=@EndDate
+    order by PlannedStartDate ASC
+
+    DECLARE @RemaingingQuantity int = @Quantity
+
+    DECLARE @CurrentPO_ID INT;
+    DECLARE @CurrentPO_Available INT;
+    DECLARE @CurrentPO_FinishDate DATE;
+    DECLARE @CurrentPO_RowID INT = 1;
+
+    while @RemaingingQuantity>0 and EXISTS (select 1 from @CandidateOrders where RowID=@CurrentPO_RowID)
+    begin
+        select
+            @CurrentPO_Available=AvailableQuantity,
+            @CurrentPO_FinishDate=PlannedEndDate,
+            @CurrentPO_ID=ProductionOrderID
+        from @CandidateOrders
+        where RowID=@CurrentPO_RowID
+
+        IF @CurrentPO_Available>=@RemaingingQuantity
+        begin
+--             this production order will satisfy all remainging quantity
+                Update @CandidateOrders
+                set QuantityToUse=@RemaingingQuantity where RowID=@CurrentPO_RowID
+
+
+                EXEC CalculateWhenQuantityOfProductWillBeProduced @UnitProductionTime = @UnitProductionTime,@ProductionOrderID = @CurrentPO_ID, @EndDate = @CurrentPO_FinishDate, @Quantity = @RemaingingQuantity, @ProductionLineID = @ProductionLineID, @CalculatedDate = @CalculatedDate output
+                set @RemaingingQuantity=0
+
+        end
+        ELSE
+            begin
+                Update @CandidateOrders
+                set QuantityToUse=@CurrentPO_Available where RowID=@CurrentPO_RowID
+                set @RemaingingQuantity-=@CurrentPO_Available
+            end
+        set @CurrentPO_RowID+=1
+
+    end
+    update pd
+    set QuantityAllocated = QuantityAllocated+QuantityToUse
+    from ProductionOrder pd
+    inner join @CandidateOrders cd on pd.ProductionOrderID=cd.ProductionOrderID
+
+    IF @RemaingingQuantity>0
+-- ------------------------------------------------------------------------------------------------
+--        Cant redirect all quantity to existing productionOrders, so create new ProductionOrder
+--  ------------------------------------------------------------------------------------------------
+    BEGIN
+        EXEC CreateNewOrder @Deadline = @EndDate,@Quantity = @RemaingingQuantity,@QuantityAllocated = @RemaingingQuantity,@ProductID = @ProductID,@ProductionLineID = @ProductionLineID,@ReturnDate = @CalculatedDate OUTPUT
+    end
+go
+
+
 ```
+Główna procedura do nowych zamówień. Na początku przekierowuje produkcje towarów które nie są skończone oraz posiadają nie zaalokowane produkty, na zamówienie klienta.Jak znajdzie produkcje, która całkowicie uzupełni zamówienie klienta oblicza czas w jakim produkcja ta może wytworzyć potrzebne produkty. Jeśli istniejące produkcje nie wypełnia całkowicie zamówienia tworzy nowe. Procedura zwraca szacowaną date, dla której zamówienia klienta może być spenione.
+
+### Procedura: CalculateWhenQuantityOfProductWillBeProduced
+```sql
+CREATE   procedure CalculateWhenQuantityOfProductWillBeProduced
+@UnitProductionTime int,
+@ProductionOrderID int,
+@EndDate date,
+@Quantity int,
+@ProductionLineID int,
+@CalculatedDate date OUTPUT
+as
+    set nocount on
+
+--      when does production start
+    DECLARE @ProductionStartDate datetime
+--      Total amount to be produced
+    DECLARE @TotalToBeProduced int
+    DECLARE @freeHours int
+--      Get when production started
+    select @ProductionStartDate=PlannedStartDate,
+           @TotalToBeProduced=@Quantity+QuantityAllocated
+    from ProductionOrder
+    where ProductionOrderID=@ProductionOrderID
+
+
+--         Get how many hours line was working on first day
+    select @freeHours=datediff(hour,cast(@ProductionStartDate as time),ShiftEnd)-DowntimeHours
+    from ProductionLineTimeAllocation
+    where Date=cast(@ProductionStartDate as date) and
+          ProductionLineId=@ProductionLineID
+  
+    ;WITH capactiy as (
+        select
+            pta.Date,
+            ph.Quantity as RealQuantity,
+            IIF(Date=cast(@ProductionStartDate as date),CAST(@freeHours/@UnitProductionTime as decimal(10,2)),cast((pta.HoursTotal-DowntimeHours)/@UnitProductionTime as decimal(10,2))) as DailyCapacity
+        from ProductionLineTimeAllocation pta
+        left join ProductionHistory ph on ph.ProductionOrderID=@ProductionOrderID and ph.ProducedDate=Date
+        where Date>=cast(@ProductionStartDate as date)
+        and pta.Date<=@EndDate
+        and pta.ProductionLineId=@ProductionLineID
+
+    ), cumulativeCapacity as (
+        SELECT
+                Date,
+                coalesce(RealQuantity,DailyCapacity) as DailyCapacity,
+                SUM(coalesce(RealQuantity,DailyCapacity)) OVER (ORDER BY Date ASC) AS CumulatedQuantity
+            FROM capactiy
+    )
+
+     select TOP 1 @CalculatedDate=Date
+     from cumulativeCapacity
+     where CumulatedQuantity>=@TotalToBeProduced
+go
+
+
+```
+Procedura oblicza datę w której produkcja wyprodukuje produkty już zaalokowane z nowymi. Dzięki temu nie musimy czekać na koniec zamówienia aby móc przyjąc zamówenie klienta. Obliczając ile w danym dni zostało wytworzone produktów próbuje operować na danych historycznych z ProductionHistory. Jeśli nie ma takich danych, szacuje czas przez EstimatedProductionTime z tabeli Products. \
+Procedura jest przydatna w szczególności jak mamy jedno duże zamówienie produkcyjne. 
+
+### Procedura: CreateNewOrder
+
+```sql
+CREATE procedure CreateNewOrder
+--     Maximum date when ProductionOrder will end
+@Deadline date,
+--     Quantity to produce
+@Quantity int,
+--     It declares if we crate order to restock shortages or we create order to satify customer demand
+
+@ProductID int,
+@ProductionLineID int,
+@QuantityAllocated int=0,
+--     Date when Production Order will end
+@ReturnDate date output
+as
+--     When production will start
+    DECLARE @ProductionStartDate datetime
+--     When production will end
+    DECLARE @ProductionEndDate datetime
+--     Hours available to produce in first day
+    DECLARE @HoursAvailableAtFirstDay decimal(10,2)
+--     Hours needed to produce at the last day
+    DECLARE @HoursAtTheLastDay decimal(10,2)
+--     Status of Production Order. If there are no Production Orders planned on this line we can start producing immediately
+    DECLARE @ProductionOrderStatus int
+--     Today's date
+    DECLARE @CurrentDate date
+--      Estimated time to produce @Quantity of Product
+    DECLARE @EstimatedTime decimal(10,2)
+
+--         Get date of last Production Order
+    select @ProductionStartDate=max(PlannedEndDate)
+    from ProductionOrder pd
+    inner join ProductionOrderStatus ps on pd.ProductionOrderStatus = ps.ProductionOrderStatus
+    where
+        ProductionLineId=@ProductionLineID
+        and ps.Status<>'Wyprodukowane'
+        and ps.Status<>'Anulowane'
+    set @CurrentDate = cast(getdate() as date)
+    
+    select @ProductionOrderStatus=ProductionOrderStatus from ProductionOrderStatus where Status='Planowane'
+-- If it's null production line is currently not producing anything
+    IF @ProductionStartDate IS NULL
+        begin
+--      We start production from next full hour
+        set @ProductionStartDate=dateadd(hour,datediff(hour,0,getdate())+1,0)
+--      If line is not currently operating we can immediately start new production
+        select @ProductionOrderStatus=ProductionOrderStatus from ProductionOrderStatus where Status='W toku'
+
+        end
+
+
+--     Estimate time needed to produce @Quantity of Product
+    select @EstimatedTime=@Quantity*EstimatedProductionTime from Products where ProductId=@ProductID
+
+--     Check if ProductionLine can produce at that day
+
+
+    select TOP 1
+        @ProductionStartDate=IIF(Date<>cast(@ProductionStartDate as date) or cast(@ProductionStartDate as time) >= ShiftEnd or  cast(@ProductionStartDate as time)<ShiftStart,dateadd(hour,datepart(hour,ShiftStart),cast(Date as datetime2(0))),@ProductionStartDate),
+        @HoursAvailableAtFirstDay=datediff(hour,cast(@ProductionStartDate as time),ShiftEnd)-DowntimeHours
+    from ProductionLineTimeAllocation where Date>=cast(@ProductionStartDate as date) and ProductionLineId=@ProductionLineID and HoursTotal-HoursAllocated>0
+
+
+--     Generate cumulative sum of available hours from @ProductionStartDay to @EndDate
+    ;with TimeSlots as(
+        select
+            @ProductionStartDate as Date,
+            @HoursAvailableAtFirstDay as Available
+        from ProductionLineTimeAllocation
+        where Date=cast(@ProductionStartDate as date)
+        and ProductionLineId=@ProductionLineID
+
+        union ALL
+        select
+            Date,
+            (HoursTotal-HoursAllocated-DowntimeHours) as Available
+        from ProductionLineTimeAllocation
+        where ProductionLineId=@ProductionLineID
+        and Date<=@Deadline
+        and Date>@ProductionStartDate
+    ), cumulativeTime as (
+        select
+            Date,
+            sum(Available) over (ORDER BY Date ASC) as CumulativeAvailable
+        from TimeSlots
+    )
+--      Select first date when production will be satisfied
+    select TOP 1 @ProductionEndDate=Date from cumulativeTime where CumulativeAvailable>=@EstimatedTime
+    set @ReturnDate=@ProductionEndDate
+
+   -- If we can't produce @Quantity of product before @EndDate return
+     IF @ProductionEndDate is null
+        begin
+            return
+        end
+
+-- Calculate how many hours is needed to finish production at the last day
+    select @HoursAtTheLastDay=@EstimatedTime-coalesce(SUM(HoursTotal-DowntimeHours),0)-@HoursAvailableAtFirstDay
+    from ProductionLineTimeAllocation
+    where Date>@ProductionStartDate
+    and Date<@ProductionEndDate
+    and ProductionLineId=@ProductionLineID
+    print @HoursAtTheLastDay
+
+
+
+--         If @ProductionStartDate=@ProductionEndDate add @EstimatedHours to @ProductionStartDate to keep integrity of Dates
+    IF cast(@ProductionStartDate as date) = cast(@ProductionEndDate as date)
+        begin
+            set @ProductionEndDate=dateadd(hour,@EstimatedTime,@ProductionStartDate)
+        end
+    ELSE
+        Begin
+--             If dates are different add @HoursAtTheLastDay to when shift start at the last day of production
+            DECLARE @ShiftStartLastDayOfProduction time(0)
+            DECLARE @Hours int
+            DECLARE @Minutes int
+            select
+                @ShiftStartLastDayOfProduction=ShiftStart 
+            from ProductionLineTimeAllocation
+            where
+                Date=cast(@ProductionEndDate as date)
+                and ProductionLineId=@ProductionLineID
+            set @Hours=FLOOR(@HoursAtTheLastDay)
+            set @Minutes=60*(@HoursAtTheLastDay-@Hours)
+
+            set @ProductionEndDate = dateadd(minute,@Minutes,dateadd(hour,datepart(hour,@ShiftStartLastDayOfProduction)+@Hours,@ProductionEndDate))
+        end
+
+
+
+-- Update time in ProductionLineTimeAllocation
+    UPDATE ProductionLineTimeAllocation
+    set HoursAllocated =
+        CASE
+--             if production starts and ends at the same date, just add @EstimatedTime to already allocated Hours at that day
+            WHEN Date=cast(@ProductionStartDate as date) then IIF(HoursTotal - HoursAllocated - DowntimeHours > @EstimatedTime,
+                                                    HoursAllocated + @EstimatedTime
+                                                    , HoursTotal)
+            WHEN Date=cast(@ProductionEndDate as date) then @HoursAtTheLastDay
+--             Date between @ProductionStartDate and @ProductionEndDate we use all working hours
+            WHEN Date>@ProductionStartDate and Date<@ProductionEndDate then HoursTotal
+--          Do nothing
+            ELSE HoursAllocated
+        END
+    where ProductionLineId=@ProductionLineID
+    and date >= cast(@ProductionStartDate as date)
+    and date<= cast(@ProductionEndDate as date)
+-- Add new ProductionOrder with calculatedvalues
+    insert into ProductionOrder(ProductionLineId, ProductionOrderStatus, ProductId, Quantity, QuantityProduced, QuantityAllocated, AddedDate, PlannedStartDate, PlannedEndDate)
+    values
+        (@ProductionLineID,@ProductionOrderStatus,@ProductID,@Quantity,0,@QuantityAllocated,@CurrentDate,@ProductionStartDate,@ProductionEndDate)
+go
+
+
+
+
+```
+Procedura alokuje czas na nowe zamówienie oraz je tworzy
 
 ## Triggery
 
