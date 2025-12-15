@@ -73,16 +73,16 @@ Załóżmy sytuacje że, klient zamówił:
 Sprawdzamy aktualne stany magazynowe przez obliczenie Available-Reserved.\
 Jeśli ta wartość jest większa niż n oraz k możemy wysłać te produkty natychmiastowo.\
 Jeśli brakuje nam produktów na jakąkolwiek pozycje zamówienia, zwiększamy wartość Reserved we wszystkich produktach o ilość sztuk zamówionego produktu.\
-Załóżmy, że brakuje nam q sztuk produktu.
-Sprawdzamy czy jesteśmy w stanie wyprodukować q sztuk do daty maksymalnego czekania podanej przez klienta.
-Na początku sprawdzamy czy mamy jakieś Production Order, które nie mają QuantityAllocated=Quantity.
-Dla każdego takiego Production Order przekierowujemy produkcje, która miała uzupełnić braki na nowe zamówienie klienta. Robiąc to kontrolujemy czas w którym wyprodukowane są brakujące produkty. Jeśli Production Order nie jest w stanie wypełnić zamówienia klienta  cała jego pozostała produkcja (Quantity-QuantityAllocated) zostaje zarezerwowana przez nowe zamówienie. Robimy to do momentu aż skończą się Production Order z QuantityAllocated < Quantity lub gdy w całości zaspokoimy zapotrzebowanie na ten produkt lub przekroczymy date podaną przez klienta.
- Gdy natrafimy na Production Order, które w całości jest w stanie pokryć zapotrzebowanie na wymaganą liczbę produktów obliczamy przybliżoną date wyprodukowania ich. To zamówienie mogło wczesniej mieć zaalokowane produkty dla innego zamówienia. Więc sprawdzamy kiedy wyprodukujemy q sztuk + QuantityAllocated. Jeśli zamówienie było już w produkcji pobieramy dane z ProductionHistory.
-Jeśli nie ma wpisu z dnia, który nas interesuje sprawdzamy szacunkową ilość wyprodukowanego produktu w ten dzień, uwzględniając godziny przestoju lini (DowntimeHours).
-Dzień w którym wyprodukujemy więcej lub tyle samo sztuk produktu co q+QuantityAllocated, jest dniem w którym możemy wysłać ten produkt.
-Załóżmy, że nie byliśmy w stanie znaleźć q sztuk do przekierowania. Po całej operacji zostaje nam x sztuk, których klient oczekuje.
- Tworzymy nowe zlecenie na x sztuk z QuantityAllocated=x, informuje to system, że ten Production Order jest stworzony na uzupełnienie jakiegoś zamówienia i nie możemy przekierować z niego żadnego produktu. Tworząc ProductionOrder sprawdzamy czy nie zostanie przekroczona data podana przez klienta.
-Gdy spełnimy wszystkie te warunki możemy przyjąć zamówienie.
+Załóżmy, że brakuje nam q sztuk produktu. \
+Sprawdzamy czy jesteśmy w stanie wyprodukować q sztuk do daty maksymalnego czekania podanej przez klienta.\
+Na początku sprawdzamy czy mamy jakieś Production Order, które nie mają QuantityAllocated=Quantity.\
+Dla każdego takiego Production Order przekierowujemy produkcje, która miała uzupełnić braki na nowe zamówienie klienta. Robiąc to kontrolujemy czas w którym wyprodukowane są brakujące produkty. Jeśli Production Order nie jest w stanie wypełnić zamówienia klienta  cała jego pozostała produkcja (Quantity-QuantityAllocated) zostaje zarezerwowana przez nowe zamówienie. Robimy to do momentu aż skończą się Production Order z QuantityAllocated < Quantity lub gdy w całości zaspokoimy zapotrzebowanie na ten produkt lub przekroczymy date podaną przez klienta.\
+ Gdy natrafimy na Production Order, które w całości jest w stanie pokryć zapotrzebowanie na wymaganą liczbę produktów obliczamy przybliżoną date wyprodukowania ich. To zamówienie mogło wczesniej mieć zaalokowane produkty dla innego zamówienia. Więc sprawdzamy kiedy wyprodukujemy q sztuk + QuantityAllocated. Jeśli zamówienie było już w produkcji pobieramy dane z ProductionHistory.\
+Jeśli nie ma wpisu z dnia, który nas interesuje sprawdzamy szacunkową ilość wyprodukowanego produktu w ten dzień, uwzględniając godziny przestoju lini (DowntimeHours).\
+Dzień w którym wyprodukujemy więcej lub tyle samo sztuk produktu co q+QuantityAllocated, jest dniem w którym możemy wysłać ten produkt.\
+Załóżmy, że nie byliśmy w stanie znaleźć q sztuk do przekierowania. Po całej operacji zostaje nam x sztuk, których klient oczekuje.\
+ Tworzymy nowe zlecenie na x sztuk z QuantityAllocated=x, informuje to system, że ten Production Order jest stworzony na uzupełnienie jakiegoś zamówienia i nie możemy przekierować z niego żadnego produktu. Tworząc ProductionOrder sprawdzamy czy nie zostanie przekroczona data podana przez klienta.\
+Gdy spełnimy wszystkie te warunki możemy przyjąć zamówienie.\
 
 Każdy wpis w Production History, który zawiera Rejected Quantity przesuwa wszystkie trwające oraz zaplanowane produkcje na lini o RejectedQuantity*EstimatedProductionTime w przód
 
