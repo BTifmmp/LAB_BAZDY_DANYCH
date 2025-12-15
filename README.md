@@ -43,18 +43,7 @@ Maciej Życki
 - US-11 Planowanie produkcji\
   Jako kierownik produkcji chce móc planowac czas operacyjny oraz obciązenie lini produkcyjnych, aby odpowiednio rozdzielać zlecenia produckcyjne
 
-### 4. Magazyn
-
-- US-12: Przyjęcie produktów z produkcji\
-  Jako magazynier chcę zarejestrować przyjęcie gotowych produktów z produkcji, aby zaktualizować stan magazynowy.
-- US-13: Stan części do produkcji\
-  Jako magazynier chcę sprawdzić stan magazynowy części, aby zgłosić potrzebę zamówienia nowych.
-- US-14: Historia magazynu\
-  Jako magazynier chcę śledzić ruchy magazynowe, aby uniknąć nieporozumień.
-- US-15: Zamawienie czesci\
-  Jako magazynier chcę móc skladać zamowienia na części, aby uniknąć braków w magazynie.
-
-### 5. Kadra Zarządcza
+### 4. Kadra Zarządcza
 
 - US-16: Raport kosztów produkcji\
    Jako dyrektor finansowy chcę zobaczyć raport kosztów produkcji (jednostkowych i grup produktów) w różnych okresach, aby ustalić odpowiedni budżet.
