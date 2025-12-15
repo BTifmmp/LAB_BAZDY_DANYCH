@@ -1,5 +1,5 @@
 -- Created by Redgate Data Modeler (https://datamodeler.redgate-platform.com)
--- Last modification date: 2025-12-14 12:00:30.713
+-- Last modification date: 2025-12-15 16:26:41.284
 
 -- tables
 -- Table: CustomerType
@@ -62,7 +62,7 @@ CREATE TABLE Parts (
     PartId int  NOT NULL IDENTITY(1, 1),
     PartCategoryId int  NOT NULL,
     PartName varchar(50)  NOT NULL,
-    PartPrice int  NOT NULL CHECK (PartPrice>0),
+    PartPrice money  NOT NULL CHECK (PartPrice>0),
     CONSTRAINT Parts_pk PRIMARY KEY  (PartId)
 );
 
@@ -153,7 +153,7 @@ CREATE TABLE Products (
     ProductId int  NOT NULL IDENTITY(1, 1),
     ProductCategoryId int  NOT NULL,
     ProductName varchar(50)  NOT NULL,
-    EstimatedProductionTime Decimal(3,2)  NOT NULL CHECK (EstimatedProductionTime>0),
+    EstimatedProductionTime decimal(4,2)  NOT NULL CHECK (EstimatedProductionTime>0),
     CurrentSellPrice money  NOT NULL CHECK (CurrentSellPrice>0),
     CurrentProductionCost money  NOT NULL CHECK (CurrentProductionCost>0),
     Available int  NOT NULL DEFAULT 0 CHECK (Available>=0),

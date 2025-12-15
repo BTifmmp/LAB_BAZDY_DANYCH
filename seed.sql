@@ -11,7 +11,7 @@ SET IDENTITY_INSERT ProductCategories OFF;
 
 -- PRODUCTS
 SET IDENTITY_INSERT Products ON;
-INSERT INTO Products (ProductId, ProductCategoryId, ProductName, EstimatedProductionTime, CurrentProductionCost, CurrentPrice, Available, Reserved, MinimalQuantity) VALUES
+INSERT INTO Products (ProductId, ProductCategoryId, ProductName, EstimatedProductionTime, CurrentProductionCost, CurrentSellPrice, Available, Reserved, MinimalQuantity) VALUES
 -- Biurka i Stoły (ID 1)
 (1, 1, 'Biurko Regulowane', 9.0, 450.00, 1199.00, 50, 10, 20),
 (2, 1, 'Stół Konferencyjny', 15.0, 780.00, 1999.00, 25, 5, 10),
@@ -45,15 +45,15 @@ INSERT INTO Products (ProductId, ProductCategoryId, ProductName, EstimatedProduc
 SET IDENTITY_INSERT Products OFF;
 
 -- PARTS CATEGORIES
-SET IDENTITY_INSERT PartCategories ON;
-INSERT INTO PartCategories (PartCategoryId, CategoryName) VALUES
+SET IDENTITY_INSERT PartsCategories ON;
+INSERT INTO PartsCategories (PartCategoryId, CategoryName) VALUES
 (1, 'Surowce Płytowe i Drewno'),    
 (2, 'Metale i Profile Konstrukcyjne'),
 (3, 'Elementy Łączące i Chemia'),
 (4, 'Tapicerka i Wypełnienia'),
 (5, 'Akcesoria Ruchome i Regulacje'),
 (6, 'Komponenty Elektryczne i LED'); 
-SET IDENTITY_INSERT PartCategories OFF;
+SET IDENTITY_INSERT PartsCategories OFF;
 
 
 
@@ -85,7 +85,7 @@ INSERT INTO Parts (PartId, PartCategoryId, PartName, PartPrice) VALUES
 
 -- Komponenty Elektryczne i LED (ID 6)
 (15, 6, 'Taśma LED RGB (mb)', 4.00),
-(16, 6, 'Zasilacz 12V 5A (szt.)', 15.00),
+(16, 6, 'Zasilacz 12V 5A (szt.)', 15.00);
 SET IDENTITY_INSERT Parts OFF;
 
 
@@ -93,72 +93,80 @@ SET IDENTITY_INSERT Parts OFF;
 
 INSERT INTO ProductsDetails (ProductId, PartId, Quantity) VALUES
 -- Biurka i Stoły (ID 1-4)
-(1, 1, 1.5), 
-(1, 4, 3.5),
+(1, 1, 2), 
+(1, 4, 3),
 
-(2, 1, 3.0),
-(2, 4, 5.0),
+(2, 1, 3),
+(2, 4, 5),
 
-(3, 1, 1.8),
-(3, 15, 3.0),
+(3, 1, 2),
+(3, 15, 3),
 
-(4, 1, 2.2),
-(4, 4, 4.0),
+(4, 1, 2),
+(4, 4, 4),
 
 -- Krzesła i Fotele (ID 5-8)
-(5, 9, 1.0),
+(5, 9, 1),
 (5, 14, 1),
 
-(6, 10, 1.2),
-(6, 15, 2.0),
+(6, 10, 1),
+(6, 15, 2),
 
-(7, 11, 3.0),
+(7, 11, 3),
 (7, 14, 1),
 
-(8, 11, 1.5),
-(8, 4, 1.5),
+(8, 11, 1),
+(8, 4, 1),
 
 -- Meble Dydaktyczne (ID 9-13)
-(9, 1, 2.5),
-(9, 4, 4.0),
+(9, 1, 2),
+(9, 4, 4),
 
-(10, 9, 0.5),
-(10, 4, 1.0),
+(10, 9, 1),
+(10, 4, 1),
 
-(11, 10, 0.8),
-(11, 4, 1.2),
+(11, 10, 1),
+(11, 4, 1),
 
-(12, 1, 2.0),
-(12, 4, 3.0),
+(12, 1, 2),
+(12, 4, 3),
 
-(13, 1, 0.5),
-(13, 4, 0.8),
+(13, 1, 1),
+(13, 4, 1),
 
 -- Akcesoria IT (ID 14-17)
-(14, 5, 2.0),
+(14, 5, 2),
 (14, 16, 1),
 
-(15, 5, 1.0),
+(15, 5, 1),
 (15, 6, 8),
 
-(16, 5, 0.5),
+(16, 5, 1),
 (16, 6, 4),
 
-(17, 5, 0.1),
-(17, 8, 0.1),
+(17, 5, 1),
+(17, 8, 1),
 
 -- Przechowanie (ID 18-21)
-(18, 5, 5.0),
-(18, 1, 1.0),
+(18, 5, 5),
+(18, 1, 1),
 
-(19, 1, 1.0),
+(19, 1, 1),
 (19, 13, 2),
 
-(20, 1, 2.5),
+(20, 1, 3),
 (20, 6, 20),
 
-(21, 5, 7.0),
+(21, 5, 7),
 (21, 13, 4);
+
+-- CUSTOMER TYPE
+SET IDENTITY_INSERT CustomerType ON;
+INSERT INTO CustomerType (TypeId, TypeName) VALUES
+(1, 'Indywidualny'),
+(2, 'Bizens');
+
+SET IDENTITY_INSERT CustomerType OFF;
 
 -- CUSTOMERS
 SET IDENTITY_INSERT Customers ON;
@@ -172,17 +180,9 @@ INSERT INTO Customers (CustomerID, CustomerType, CustomerName, [Address], Countr
 
 SET IDENTITY_INSERT Customers OFF;
 
--- CUSTOMER TYPE
-SET IDENTITY_INSERT CustomerType ON;
-INSERT INTO CustomerType (CustomerTypeId, TypeName) VALUES
-(1, 'Indywidualny'),
-(2, 'Bizens');
-
-SET IDENTITY_INSERT CustomerType OFF;
-
 SET IDENTITY_INSERT OrderStatus ON;
 
-INSERT INTO OrderStatus (OrderStatusID, OrderStatusNa) VALUES
+INSERT INTO OrderStatus (OrderStatusID, OrderStatusName) VALUES
 (1, 'Przyjęte'),
 (2, 'W realizacji'),
 (3, 'Gotowe do wysyłki'),
@@ -194,7 +194,7 @@ SET IDENTITY_INSERT OrderStatus OFF;
 
 SET IDENTITY_INSERT ProductionOrderStatus ON;
 
-INSERT INTO ProductionOrderStatus (ProductionOrderSta, Status) VALUES
+INSERT INTO ProductionOrderStatus (ProductionOrderStatus, Status) VALUES
 (1, 'Planowane'),
 (2, 'W toku'),
 (3, 'Gotowe'),

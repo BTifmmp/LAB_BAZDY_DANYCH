@@ -45,11 +45,11 @@ Maciej Życki
 
 ### 4. Kadra Zarządcza
 
-- US-16: Raport kosztów produkcji\
+- US-12: Raport kosztów produkcji\
    Jako dyrektor finansowy chcę zobaczyć raport kosztów produkcji (jednostkowych i grup produktów) w różnych okresach, aby ustalić odpowiedni budżet.
-- US-17: Raport sprzedaży\
+- US-13: Raport sprzedaży\
   Jako dyrektor handlowy chcę zobaczyć raport sprzedaży oraz kosztów grup produktów w tygodniach/miesiącach, aby analizować trendy oraz ocenić rentowność.
-- US-18: Plan produkcji\
+- US-14: Plan produkcji\
   Jako dyrektor operacyjny chcę zobaczyć plan wytworzenia produktów w różnych przedziałach czasowych, aby monitorować obciążenie zakładu.
 
 # 2. Baza danych
