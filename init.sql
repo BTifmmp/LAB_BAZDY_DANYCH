@@ -1,5 +1,5 @@
 -- Created by Redgate Data Modeler (https://datamodeler.redgate-platform.com)
--- Last modification date: 2025-12-15 16:26:41.284
+-- Last modification date: 2025-12-15 21:27:34.621
 
 -- tables
 -- Table: CustomerType
@@ -28,8 +28,8 @@ CREATE TABLE OrderDetails (
     OrderID int  NOT NULL,
     ProductId int  NOT NULL,
     Quantity int  NOT NULL CHECK (Quantity>0),
-    UnitPrice int  NOT NULL CHECK (UnitPrice>0),
-    Discount decimal(3,2)  NOT NULL DEFAULT 0 CHECK (Discount>=0 AND Discount<=1),
+    UnitPrice money  NOT NULL CHECK (UnitPrice>0),
+    Discount decimal(5,2)  NOT NULL DEFAULT 0 CHECK (Discount>=0 AND Discount<=1),
     CONSTRAINT OrderDetails_pk PRIMARY KEY  (OrderID,ProductId)
 );
 
@@ -90,6 +90,14 @@ CREATE TABLE ProductCategories (
     CONSTRAINT ProductCategories_pk PRIMARY KEY  (ProductCategoryID)
 );
 
+-- Table: ProductReservation
+CREATE TABLE ProductReservation (
+    ProductID int  NOT NULL,
+    OrderID int  NOT NULL,
+    Quantity int  NOT NULL CHECK (Quantity>0),
+    CONSTRAINT ProductReservation_pk PRIMARY KEY  (ProductID,OrderID)
+);
+
 -- Table: ProductionHistory
 CREATE TABLE ProductionHistory (
     ProductionHistoryId int  NOT NULL IDENTITY(1, 1),
@@ -113,12 +121,15 @@ CREATE TABLE ProductionLine (
 CREATE TABLE ProductionLineTimeAllocation (
     ProductionLineTimeAllocationID int  NOT NULL IDENTITY(1, 1),
     ProductionLineId int  NOT NULL,
-    HoursTotal int  NOT NULL CHECK (HoursTotal>=0),
-    HoursAllocated int  NOT NULL DEFAULT 0 CHECK (HoursAllocated>=0),
+    HoursTotal decimal(6,2)  NOT NULL CHECK (HoursTotal>=0),
+    HoursAllocated decimal(6,2)  NOT NULL DEFAULT 0 CHECK (HoursAllocated>=0),
     Date date  NOT NULL,
     DowntimeHours int  NOT NULL DEFAULT 0 CHECK (DowntimeHours>=0),
+    ShiftStart time(0)  NOT NULL,
+    ShiftEnd time(0)  NOT NULL,
     CONSTRAINT ProductionLine_Date UNIQUE (ProductionLineId, Date),
     CONSTRAINT CK_hours CHECK (HoursTotal>=HoursAllocated),
+    CONSTRAINT CK_Shift CHECK (ShiftStart<=ShiftEnd),
     CONSTRAINT ProductionLineTimeAllocation_pk PRIMARY KEY  (ProductionLineTimeAllocationID)
 );
 
@@ -130,14 +141,16 @@ CREATE TABLE ProductionOrder (
     ProductId int  NOT NULL,
     Quantity int  NOT NULL CHECK (Quantity>0),
     QuantityProduced int  NOT NULL DEFAULT 0 CHECK (QuantityProduced>=0),
+    QuantityAllocated int  NOT NULL DEFAULT 0 CHECK (QuantityAllocated>=0),
     AddedDate date  NOT NULL,
-    PlannedStartDate date  NOT NULL,
-    PlannedEndDate date  NOT NULL,
-    StartDate date  NULL,
-    EndDate date  NULL,
+    PlannedStartDate datetime  NOT NULL,
+    PlannedEndDate datetime  NOT NULL,
+    StartDate datetime  NULL,
+    EndDate datetime  NULL,
     CONSTRAINT CHK_AddDate CHECK (AddedDate<=PlannedStartDate),
     CONSTRAINT CHK_PlannedDates CHECK (PlannedStartDate<=PlannedEndDate),
     CONSTRAINT CHK_RealDates CHECK (EndDate is Null OR StartDate<=EndDate ),
+    CONSTRAINT CHK_QuantityAllocated_Quantity CHECK (Quantity>=QuantityAllocated),
     CONSTRAINT ProductionOrder_pk PRIMARY KEY  (ProductionOrderID)
 );
 
@@ -185,6 +198,16 @@ ALTER TABLE OrderDetails ADD CONSTRAINT OrderDetails_Orders
 -- Reference: OrderDetails_Products (table: OrderDetails)
 ALTER TABLE OrderDetails ADD CONSTRAINT OrderDetails_Products
     FOREIGN KEY (ProductId)
+    REFERENCES Products (ProductId);
+
+-- Reference: OrdersReservation_Orders (table: ProductReservation)
+ALTER TABLE ProductReservation ADD CONSTRAINT OrdersReservation_Orders
+    FOREIGN KEY (OrderID)
+    REFERENCES Orders (OrderID);
+
+-- Reference: OrdersReservation_Products (table: ProductReservation)
+ALTER TABLE ProductReservation ADD CONSTRAINT OrdersReservation_Products
+    FOREIGN KEY (ProductID)
     REFERENCES Products (ProductId);
 
 -- Reference: Orders_Customers (table: Orders)

@@ -210,6 +210,6 @@ INSERT INTO ProductionLine (ProductionLineId, ProductCategoryId) VALUES
 (2, 2),
 (3, 3),
 (4, 4),
-(5, 5),
+(5, 5);
 
 SET IDENTITY_INSERT ProductionLine OFF;
