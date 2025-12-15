@@ -203,4 +203,13 @@ INSERT INTO ProductionOrderStatus (ProductionOrderStatus, Status) VALUES
 SET IDENTITY_INSERT ProductionOrderStatus OFF;
 
 
+-- PRODUCTION LINES
+SET IDENTITY_INSERT ProductionLine ON;
+INSERT INTO ProductionLine (ProductionLineId, ProductCategoryId) VALUES
+(1, 1),
+(2, 2),
+(3, 3),
+(4, 4),
+(5, 5),
 
+SET IDENTITY_INSERT ProductionLine OFF;
