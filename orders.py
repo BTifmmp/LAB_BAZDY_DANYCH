@@ -112,12 +112,15 @@ for i in range(1, ORDER_COUNT + 1):
         payment_id_counter += 1
 
 
-
-sql_script = "INSERT INTO Orders (OrderID, CustomerID, Status, ShipAddress, ShipCity, ShipCountry, ShipRegion, ShipPostalCode, OrderDate, ShipDate, CompletionDate) VALUES\n"
+sql_script = "SET IDENTITY_INSERT Orders ON;\n"
+sql_script += "INSERT INTO Orders (OrderID, CustomerID, Status, ShipAddress, ShipCity, ShipCountry, ShipRegion, ShipPostalCode, OrderDate, ShipDate, CompletionDate) VALUES\n"
 sql_script += ",\n".join(orders_records) + ";\n\n"
+sql_script += "SET IDENTITY_INSERT Orders OFF;\n"
 
+sql_script += "SET IDENTITY_INSERT Payments ON;\n"
 sql_script += "INSERT INTO Payments (PaymentID, OrderID, Amount, PaymentMethod, TransactionDate) VALUES\n"
 sql_script += ",\n".join(payments_records) + ";\n"
+sql_script += "SET IDENTITY_INSERT Payments OFF;\n"
 
-with open("insert_orders_payments_final.sql", "w", encoding="utf-8") as f_out:
+with open("seed_orders.sql", "w", encoding="utf-8") as f_out:
     f_out.write(sql_script)

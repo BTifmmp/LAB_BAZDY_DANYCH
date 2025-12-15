@@ -11,8 +11,7 @@ DISCOUNT_CHANCE = 0.30
 MIN_DISCOUNT = 0.10
 MAX_DISCOUNT = 0.30
 
-sql_script = "--- 1. INSERT ORDER DETAILS (200-400 records) ---\n"
-sql_script += "INSERT INTO OrderDetails (OrderID, ProductId, Quantity, UnitPrice, Discount) VALUES\n"
+sql_script = "INSERT INTO OrderDetails (OrderID, ProductId, Quantity, UnitPrice, Discount) VALUES\n"
 
 records = []
 for order_id in range(1, ORDER_COUNT + 1):
@@ -39,8 +38,9 @@ for order_id in range(1, ORDER_COUNT + 1):
         )
         records.append(record)
 
+
 sql_script += ",\n".join(records) + ";\n"
 
 
-with open("insert_order_details.sql", "w", encoding="utf-8") as f_out:
+with open("seed_order_details.sql", "w", encoding="utf-8") as f_out:
     f_out.write(sql_script)
