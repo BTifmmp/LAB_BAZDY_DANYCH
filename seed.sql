@@ -201,3 +201,6 @@ INSERT INTO ProductionOrderStatus (ProductionOrderStatus, Status) VALUES
 (4, 'Anulowane');
 
 SET IDENTITY_INSERT ProductionOrderStatus OFF;
+
+
+
