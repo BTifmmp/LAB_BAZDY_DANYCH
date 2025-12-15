@@ -42,5 +42,5 @@ for order_id in range(1, ORDER_COUNT + 1):
 sql_script += ",\n".join(records) + ";\n"
 
 
-with open("seed_order_details.sql", "w", encoding="utf-8") as f_out:
+with open("seed_order_details_2.sql", "w", encoding="utf-8") as f_out:
     f_out.write(sql_script)

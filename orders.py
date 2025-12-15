@@ -50,7 +50,7 @@ for i in range(1, ORDER_COUNT + 1):
     
     status_id = get_status_id()
     
-    order_date_dt = get_random_date_dt(2005, 2006)
+    order_date_dt = get_random_date_dt(2024, 2025)
     order_date_str = f"'{order_date_dt.date()}'"
     
     ship_date = "NULL"
@@ -122,5 +122,5 @@ sql_script += "INSERT INTO Payments (PaymentID, OrderID, Amount, PaymentMethod, 
 sql_script += ",\n".join(payments_records) + ";\n"
 sql_script += "SET IDENTITY_INSERT Payments OFF;\n"
 
-with open("seed_orders.sql", "w", encoding="utf-8") as f_out:
+with open("seed_orders_1.sql", "w", encoding="utf-8") as f_out:
     f_out.write(sql_script)
