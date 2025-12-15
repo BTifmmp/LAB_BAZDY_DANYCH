@@ -572,6 +572,8 @@ CREATE TABLE ProductionHistory (
    ProductId int  NOT NULL,
    ProducedDate date  NOT NULL,
    ProductionCost money  NOT NULL CHECK (ProductionCost>0),
+   Quantity int NOT NULL CHECK (Quantity > 0),
+   RejectedQuantity int NOT NULL CHECK (RejectedQuantity > 0),
    CONSTRAINT ProductionHistory_pk PRIMARY KEY  (ProductionHistoryId)
 );
 ```
@@ -583,6 +585,8 @@ CREATE TABLE ProductionHistory (
 | ProductId           | int   | Klucz obcy, identyfikuje wyprodukowany produkt                      |
 | ProducedDate        | date  | Data wyprodukowania produktu                                        |
 | ProductionCost      | money | Koszt produkcji produktu                                            |
+| Quantity            | int   | Liczba wyprodukowanych produktów                                    |
+| RejectedQuantity    | int   | Liczba wyprodukowanych produktów, które zostały odrzucone           |
 
 ---
 
@@ -594,18 +598,20 @@ CREATE TABLE ProductionLineTimeAllocation (
    ProductionLineId int  NOT NULL,
    HoursTotal int  NOT NULL CHECK (HoursTotal>0),
    HoursAllocated int  NOT NULL DEFAULT 0 CHECK (HoursAllocated>0),
+   DowntimeHours int NOT NULL DEFAULT 0 CHECK (HoursAllocated>=0),
    Date date  NOT NULL,
    CONSTRAINT ProductionLineTimeAllocation_pk PRIMARY KEY  (ProductionLineTimeAllocationID)
 );
 ```
 
-| Nazwa atrybutu                 | Typ  | Opis/Uwagi                                                   |
-| :----------------------------- | :--- | :----------------------------------------------------------- |
-| ProductionLineTimeAllocationID | int  | Klucz główny, unikalny identyfikator alokacji czasu          |
-| ProductionLineId               | int  | Klucz obcy, identyfikuje linię, której dotyczy alokacja      |
-| HoursTotal                     | int  | Całkowita liczba godzin dostępnych na tej linii w danym dniu |
-| HoursAllocated                 | int  | Liczba godzin, które zostały już zaalokowane na tej linii    |
-| Date                           | date | Data, której dotyczy alokacja czasu                          |
+| Nazwa atrybutu                 | Typ  | Opis/Uwagi                                                      |
+| :----------------------------- | :--- | :-------------------------------------------------------------- |
+| ProductionLineTimeAllocationID | int  | Klucz główny, unikalny identyfikator alokacji czasu             |
+| ProductionLineId               | int  | Klucz obcy, identyfikuje linię, której dotyczy alokacja         |
+| HoursTotal                     | int  | Całkowita liczba godzin dostępnych na tej linii w danym dniu    |
+| HoursAllocated                 | int  | Liczba godzin, które zostały już zaalokowane na tej linii       |
+| DowntimeHours                  | int  | Liczba godzin straconych przez wadliwe produkty i problemy lini |
+| Date                           | date | Data, której dotyczy alokacja czasu                             |
 
 ---
 
