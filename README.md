@@ -64,9 +64,10 @@ Diagram v1\
 
 ## Schemat dzialania zamówień
 
-W Tabeli Products przechowywane są informacje o aktualnym stanie magazynowym (Available), zarezerwowanych produktach (Reserved) oraz docelowej minimalnej ilości sztuk na magazynie (MinimalQuantity).Gdy pole Available-Reserved spadnie poniżej wartości MinimalQuantity, sprawdzamy czy nie ma aktualnie Production Order na te produkty. Jeśli nie ma tworzymy nowe Production Order, które uzupełni braki. 
+W Tabeli Products przechowywane są informacje o aktualnym stanie magazynowym (Available), zarezerwowanych produktach (Reserved) oraz docelowej minimalnej ilości sztuk na magazynie (MinimalQuantity).Gdy pole Available-Reserved spadnie poniżej wartości MinimalQuantity, sprawdzamy czy nie ma aktualnie Production Order na te produkty. Jeśli nie ma tworzymy nowe Production Order, które uzupełni braki.
 
 Załóżmy sytuacje że, klient zamówił:
+
 - n sztuk produktu o id = 1
 - k sztuk produktu o id = 2
 
@@ -76,7 +77,7 @@ Jeśli brakuje nam produktów na jakąkolwiek pozycje zamówienia, zwiększamy w
 Załóżmy, że brakuje nam q sztuk produktu. \
 Sprawdzamy czy jesteśmy w stanie wyprodukować q sztuk do daty maksymalnego czekania podanej przez klienta.\
 Na początku sprawdzamy czy mamy jakieś Production Order, które nie mają QuantityAllocated=Quantity.\
-Dla każdego takiego Production Order przekierowujemy produkcje, która miała uzupełnić braki na nowe zamówienie klienta. Robiąc to kontrolujemy czas w którym wyprodukowane są brakujące produkty. Jeśli Production Order nie jest w stanie wypełnić zamówienia klienta  cała jego pozostała produkcja (Quantity-QuantityAllocated) zostaje zarezerwowana przez nowe zamówienie. Robimy to do momentu aż skończą się Production Order z QuantityAllocated < Quantity lub gdy w całości zaspokoimy zapotrzebowanie na ten produkt lub przekroczymy date podaną przez klienta.\
+Dla każdego takiego Production Order przekierowujemy produkcje, która miała uzupełnić braki na nowe zamówienie klienta. Robiąc to kontrolujemy czas w którym wyprodukowane są brakujące produkty. Jeśli Production Order nie jest w stanie wypełnić zamówienia klienta cała jego pozostała produkcja (Quantity-QuantityAllocated) zostaje zarezerwowana przez nowe zamówienie. Robimy to do momentu aż skończą się Production Order z QuantityAllocated < Quantity lub gdy w całości zaspokoimy zapotrzebowanie na ten produkt lub przekroczymy date podaną przez klienta.\
  Gdy natrafimy na Production Order, które w całości jest w stanie pokryć zapotrzebowanie na wymaganą liczbę produktów obliczamy przybliżoną date wyprodukowania ich. To zamówienie mogło wczesniej mieć zaalokowane produkty dla innego zamówienia. Więc sprawdzamy kiedy wyprodukujemy q sztuk + QuantityAllocated. Jeśli zamówienie było już w produkcji pobieramy dane z ProductionHistory.\
 Jeśli nie ma wpisu z dnia, który nas interesuje sprawdzamy szacunkową ilość wyprodukowanego produktu w ten dzień, uwzględniając godziny przestoju lini (DowntimeHours).\
 Dzień w którym wyprodukujemy więcej lub tyle samo sztuk produktu co q+QuantityAllocated, jest dniem w którym możemy wysłać ten produkt.\
@@ -84,11 +85,11 @@ Załóżmy, że nie byliśmy w stanie znaleźć q sztuk do przekierowania. Po ca
  Tworzymy nowe zlecenie na x sztuk z QuantityAllocated=x, informuje to system, że ten Production Order jest stworzony na uzupełnienie jakiegoś zamówienia i nie możemy przekierować z niego żadnego produktu. Tworząc ProductionOrder sprawdzamy czy nie zostanie przekroczona data podana przez klienta.\
 Gdy spełnimy wszystkie te warunki możemy przyjąć zamówienie.
 
-Każdy wpis w Production History, który zawiera Rejected Quantity przesuwa wszystkie trwające oraz zaplanowane produkcje na lini o RejectedQuantity*EstimatedProductionTime w przód
+Każdy wpis w Production History, który zawiera Rejected Quantity przesuwa wszystkie trwające oraz zaplanowane produkcje na lini o RejectedQuantity\*EstimatedProductionTime w przód
 
 ### Schemat działania produkcji
 
-W tabeli ProductionLineTimeAllocation przechowujemy informacje o wykorzystaniu danej lini w dany dzień. Gdy tworzymy nowe zamówienie, które będzie produkowane przez wiele dni sprawdzamy ile godzin w konkretnie dni linia może pracować oraz rezerwujemy je w całości. Pozwala to oszacować date zakończenia produkcji. 
+W tabeli ProductionLineTimeAllocation przechowujemy informacje o wykorzystaniu danej lini w dany dzień. Gdy tworzymy nowe zamówienie, które będzie produkowane przez wiele dni sprawdzamy ile godzin w konkretnie dni linia może pracować oraz rezerwujemy je w całości. Pozwala to oszacować date zakończenia produkcji.
 
 ## Opis poszczególnych tabel
 
@@ -488,17 +489,16 @@ CREATE TABLE ProductionLineTimeAllocation (
 
 ```
 
-| Nazwa atrybutu                 | Typ  | Opis/Uwagi                                                               |
-| :----------------------------- | :--- | :----------------------------------------------------------------------- |
-| ProductionLineTimeAllocationID | int  | Klucz główny, unikalny identyfikator alokacji czasu                      |
-| ProductionLineId               | int  | Klucz obcy, identyfikuje linię, której dotyczy alokacja                  |
-| HoursTotal                     | decimal(6,2)  | Całkowita liczba godzin dostępnych na tej linii w danym dniu    |
-| HoursAllocated                 | decimal(6,2)  | Liczba godzin, które zostały już zaalokowane na tej linii       |
-| Date                           | date | Data, której dotyczy alokacja czasu                                      |
-| DowntimeHours                  | int  | Liczba godzin straconych przez wadliwe produkty i problemy lini          |
-| ShiftStart                     | time(0)| Godzina w której linia rozpoczyna prace                                |
-| ShiftEnd                       | time(0)| Godzina w której linia kończy pracę                                    |
-
+| Nazwa atrybutu                 | Typ          | Opis/Uwagi                                                      |
+| :----------------------------- | :----------- | :-------------------------------------------------------------- |
+| ProductionLineTimeAllocationID | int          | Klucz główny, unikalny identyfikator alokacji czasu             |
+| ProductionLineId               | int          | Klucz obcy, identyfikuje linię, której dotyczy alokacja         |
+| HoursTotal                     | decimal(6,2) | Całkowita liczba godzin dostępnych na tej linii w danym dniu    |
+| HoursAllocated                 | decimal(6,2) | Liczba godzin, które zostały już zaalokowane na tej linii       |
+| Date                           | date         | Data, której dotyczy alokacja czasu                             |
+| DowntimeHours                  | int          | Liczba godzin straconych przez wadliwe produkty i problemy lini |
+| ShiftStart                     | time(0)      | Godzina w której linia rozpoczyna prace                         |
+| ShiftEnd                       | time(0)      | Godzina w której linia kończy pracę                             |
 
 ---
 
@@ -511,11 +511,14 @@ CREATE TABLE ProductionOrderStatus (
    CONSTRAINT ProductionOrderStatus_pk PRIMARY KEY  (ProductionOrderStatus)
 );
 ```
+
 | Nazwa atrybutu        | Typ         | Opis/Uwagi                                                  |
 | :-------------------- | :---------- | :---------------------------------------------------------- |
 | ProductionOrderStatus | int         | Klucz główny, identyfikator statusu zlecenia                |
 | Status                | varchar(20) | Tekstowa nazwa statusu (np. Oczekujące, W toku, Zakończone) |
+
 ### Tabela: ProductReservation
+
 ```sql
 CREATE TABLE ProductReservation (
    ProductID int  NOT NULL,
@@ -528,25 +531,25 @@ CREATE TABLE ProductReservation (
       REFERENCES Orders (OrderID);
 );
 ```
-| Nazwa atrybutu        | Typ         | Opis/Uwagi                                                  |
-| :-------------------- | :---------- | :---------------------------------------------------------- |
-| Product | int         | Klucz główny, identyfikator statusu zlecenia                |
-| Status                | varchar(20) | Tekstowa nazwa statusu (np. Oczekujące, W toku, Zakończone) |
 
-
-
+| Nazwa atrybutu | Typ         | Opis/Uwagi                                                  |
+| :------------- | :---------- | :---------------------------------------------------------- |
+| Product        | int         | Klucz główny, identyfikator statusu zlecenia                |
+| Status         | varchar(20) | Tekstowa nazwa statusu (np. Oczekujące, W toku, Zakończone) |
 
 # 3. Widoki, procedury/funkcje, triggery
 
 ## Widoki
 
 ---
+
 ### Widok: Podsumowanie zamówień
+
 Pokazuje ostateczną wartość każdego zamówienia po odjęciu rabatów. Łączy w jednym miejscu dane o tym kto kupił, za ile i skąd.
 
 ```sql
 CREATE VIEW v_OrderSummary AS
-SELECT 
+SELECT
     o.OrderID,
     o.OrderDate,
     c.CustomerName,
@@ -562,17 +565,20 @@ JOIN Customers c ON o.CustomerID = c.CustomerID
 JOIN CustomerType ct ON c.CustomerType = ct.TypeID
 JOIN OrderStatus os ON o.Status = os.OrderStatusID
 JOIN OrderDetails od ON o.OrderID = od.OrderID
-GROUP BY 
-    o.OrderID, o.OrderDate, c.CustomerName, ct.TypeName, 
+GROUP BY
+    o.OrderID, o.OrderDate, c.CustomerName, ct.TypeName,
     os.OrderStatusName, o.ShipCity, o.ShipCountry;
 ```
 
 ---
+
 ### Widok: Ranking Produktów
+
 Zestawienie bestsellerów. Pokazuje, które produkty przynoszą firmie największy przychód i sprzedają się w największych ilościach.
+
 ```sql
 CREATE VIEW v_TopSellingProducts AS
-SELECT 
+SELECT
     p.ProductName,
     pc.CategoryName,
     SUM(od.Quantity) AS TotalUnitsSold,
@@ -584,16 +590,19 @@ JOIN OrderDetails od ON p.ProductId = od.ProductId
 JOIN Orders o ON od.OrderID = o.OrderID
 JOIN OrderStatus os ON o.Status = os.OrderStatusID
 WHERE os.OrderStatusName <> 'Anulowane'
-GROUP BY 
+GROUP BY
     p.ProductName, pc.CategoryName, p.CurrentSellPrice;
 ```
 
 ---
+
 ### Widok: Analiza Kosztów Produkcji
+
 Wylicza marżę (zysk na sztuce) oraz pokazuje, ile wynoszą koszty niematerialne, czyli robocizna i pozostałe koszta po odjęciu ceny części.
+
 ```sql
 CREATE VIEW v_ProductCostAnalysis AS
-SELECT 
+SELECT
     p.ProductName,
     pc.CategoryName,
     p.CurrentSellPrice,
@@ -605,13 +614,16 @@ FROM Products p
 JOIN ProductCategories pc ON p.ProductCategoryId = pc.ProductCategoryID
 JOIN ProductsDetails pd ON p.ProductId = pd.ProductId
 JOIN Parts pt ON pd.PartId = pt.PartId
-GROUP BY 
+GROUP BY
     p.ProductName, pc.CategoryName, p.CurrentSellPrice, p.CurrentProductionCost;
 ```
 
 ---
+
 ### Widok: Kolejka i Status Produkcji
+
 Monitoruje postęp i terminowość wszystkich zleceń produkcyjnych. Automatycznie flaguje zlecenia jako "Opóźnione", jeśli minął planowany termin zakończenia.
+
 ```sql
 CREATE VIEW v_ProductionQueue AS
 SELECT
@@ -638,8 +650,11 @@ JOIN ProductionLine pl ON po.ProductionLineId = pl.ProductionLineId;
 ```
 
 ---
+
 ### Widok: Ranking klientów
+
 Identyfikuje kluczowych klientów. Mówi, kto zostawia w firmie najwięcej pieniędzy, a kto zamawia najczęściej.
+
 ```sql
 CREATE VIEW v_CustomerStats AS
 SELECT
@@ -659,11 +674,14 @@ GROUP BY c.CustomerName, ct.TypeName;
 ```
 
 ---
+
 ### Widok: Miesięczne zestawienie przychodów
+
 Podsumowuje, ile firma zarobiła w każdym miesiącu.
+
 ```sql
 CREATE VIEW v_MonthlySales AS
-SELECT 
+SELECT
     FORMAT(o.OrderDate, 'yyyy-MM') AS SalesMonth,
     COUNT(DISTINCT o.OrderID) AS OrdersCount,
     SUM(od.Quantity * od.UnitPrice * (1.0 - od.Discount)) AS MonthlyRevenue
@@ -675,11 +693,14 @@ GROUP BY FORMAT(o.OrderDate, 'yyyy-MM');
 ```
 
 ---
+
 ### Widok: Zapotrzebowanie Materiałowe
+
 Zlicza łączne zapotrzebowanie na części dla wszystkich otwartych zleceń produkcyjnych. Stanowi gotową listę zakupową wraz z estymacją kosztów.
+
 ```sql
 CREATE VIEW v_MaterialRequirements AS
-SELECT 
+SELECT
     pt.PartName,
     pc.CategoryName,
     SUM(po.Quantity * pd.Quantity) AS TotalQuantityRequired,
@@ -691,13 +712,16 @@ JOIN Parts pt ON pd.PartId = pt.PartId
 JOIN PartsCategories pc ON pt.PartCategoryId = pc.PartCategoryId
 WHERE
     po.ProductionOrderStatus IN (1, 2, 4)
-GROUP BY 
+GROUP BY
     pt.PartName, pc.CategoryName, pt.PartPrice;
 ```
 
 ---
+
 ### Widok: Braki magazynowe
+
 Wyświetla listę produktów, których zapas spadł poniżej bezpiecznego poziomu lub których brakuje do realizacji zamówień.
+
 ```sql
 CREATE VIEW v_StockShortages AS
 SELECT
@@ -719,43 +743,49 @@ WHERE (p.Available - p.Reserved) < p.MinimalQuantity;
 ```
 
 ---
+
 ### Widok: Niezapłacone Zamówienia
+
 Lista dłużników. Wyświetla tylko te zamówienia, za które klienci jeszcze nie zapłacili w całości, wraz z kwotą, która pozostała do uregulowania.
+
 ```sql
 CREATE VIEW v_UnpaidOrders AS
-SELECT 
+SELECT
     v.OrderID,
     v.CustomerName,
     v.OrderDate,
     v.TotalOrderValue,
     ISNULL(SUM(pay.Amount), 0) AS TotalPaid,
     (v.TotalOrderValue - ISNULL(SUM(pay.Amount), 0)) AS RemainingBalance,
-    CASE 
+    CASE
         WHEN ISNULL(SUM(pay.Amount), 0) = 0 THEN 'Brak wpłaty'
         WHEN ISNULL(SUM(pay.Amount), 0) < v.TotalOrderValue THEN 'Częściowo opłacone'
     END AS PaymentStatus
 FROM v_OrderSummary v
 LEFT JOIN Payments pay ON v.OrderID = pay.OrderID
-GROUP BY 
+GROUP BY
     v.OrderID, v.CustomerName, v.OrderDate, v.TotalOrderValue
 HAVING (v.TotalOrderValue - ISNULL(SUM(pay.Amount), 0)) > 0;
 ```
 
 ---
+
 ### Widok: Skuteczność produkcji
+
 Wylicza, jaki procent wyprodukowanych towarów stanowiły braki (uszkodzone produkty). Pozwala to ocenić sprawność linii produkcyjnych oraz zidentyfikować produkty sprawiające największą trudność w produkcji.
+
 ```sql
 CREATE VIEW v_ProductionEfficiency AS
-SELECT 
+SELECT
     p.ProductName,
     pl.ProductionLineId,
     SUM(ph.Quantity) AS TotalProducedGood,
     SUM(ph.RejectedQuantity) AS TotalRejected,
     CAST(
-        CASE 
+        CASE
             WHEN (SUM(ph.Quantity) + SUM(ph.RejectedQuantity)) = 0 THEN 0
             ELSE (SUM(ph.RejectedQuantity) * 100.0) / (SUM(ph.Quantity) + SUM(ph.RejectedQuantity))
-        END 
+        END
     AS DECIMAL(5,2)) AS DefectRatePercent
 
 FROM ProductionHistory ph
@@ -766,6 +796,7 @@ GROUP BY p.ProductName, pl.ProductionLineId;
 ```
 
 ---
+
 (dla każdego widoku należy wkleić kod polecenia definiującego widok wraz z komentarzem)
 
 ```sql
@@ -778,8 +809,8 @@ select a from tab1
 
 (dla każdej procedury/funkcji należy wkleić kod polecenia definiującego procedurę wraz z komentarzem)
 
-
 ### Procedura: RedirectAndCreateNewOrder
+
 ```sql
 CREATE procedure RedirectAndCreateNewOrder
 @ProductID int ,
@@ -873,9 +904,11 @@ go
 
 
 ```
+
 Główna procedura do nowych zamówień. Na początku przekierowuje produkcje towarów które nie są skończone oraz posiadają nie zaalokowane produkty, na zamówienie klienta.Jak znajdzie produkcje, która całkowicie uzupełni zamówienie klienta oblicza czas w jakim produkcja ta może wytworzyć potrzebne produkty. Jeśli istniejące produkcje nie wypełnia całkowicie zamówienia tworzy nowe. Procedura zwraca szacowaną date, dla której zamówienia klienta może być spenione.
 
 ### Procedura: CalculateWhenQuantityOfProductWillBeProduced
+
 ```sql
 CREATE   procedure CalculateWhenQuantityOfProductWillBeProduced
 @UnitProductionTime int,
@@ -904,7 +937,7 @@ as
     from ProductionLineTimeAllocation
     where Date=cast(@ProductionStartDate as date) and
           ProductionLineId=@ProductionLineID
-  
+
     ;WITH capactiy as (
         select
             pta.Date,
@@ -931,8 +964,9 @@ go
 
 
 ```
+
 Procedura oblicza datę w której produkcja wyprodukuje produkty już zaalokowane z nowymi. Dzięki temu nie musimy czekać na koniec zamówienia aby móc przyjąc zamówenie klienta. Obliczając ile w danym dni zostało wytworzone produktów próbuje operować na danych historycznych z ProductionHistory. Jeśli nie ma takich danych, szacuje czas przez EstimatedProductionTime z tabeli Products. \
-Procedura jest przydatna w szczególności jak mamy jedno duże zamówienie produkcyjne. 
+Procedura jest przydatna w szczególności jak mamy jedno duże zamówienie produkcyjne.
 
 ### Procedura: CreateNewOrder
 
@@ -974,7 +1008,7 @@ as
         and ps.Status<>'Wyprodukowane'
         and ps.Status<>'Anulowane'
     set @CurrentDate = cast(getdate() as date)
-    
+
     select @ProductionOrderStatus=ProductionOrderStatus from ProductionOrderStatus where Status='Planowane'
 -- If it's null production line is currently not producing anything
     IF @ProductionStartDate IS NULL
@@ -1054,7 +1088,7 @@ as
             DECLARE @Hours int
             DECLARE @Minutes int
             select
-                @ShiftStartLastDayOfProduction=ShiftStart 
+                @ShiftStartLastDayOfProduction=ShiftStart
             from ProductionLineTimeAllocation
             where
                 Date=cast(@ProductionEndDate as date)
@@ -1094,15 +1128,80 @@ go
 
 
 ```
+
 Procedura alokuje czas na nowe zamówienie oraz je tworzy
+
+### Funkcja: Total order value
+
+```sql
+CREATE FUNCTION CalculateOrderValue_FN
+(
+    @OrderID INT
+)
+RETURNS DECIMAL(10, 2)
+AS
+BEGIN
+    DECLARE @TotalAmount DECIMAL(10, 2);
+
+    -- Obliczenie sumy wartości wszystkich pozycji w zamówieniu
+    SELECT
+        @TotalAmount = SUM(
+            od.Quantity * od.UnitPrice * (1.0 - od.Discount)
+        )
+    FROM
+        OrderDetails od
+    WHERE
+        od.OrderId = @OrderID;
+
+    IF @TotalAmount IS NULL
+    BEGIN
+        SET @TotalAmount = 0.00;
+    END
+
+    RETURN @TotalAmount;
+END
+GO
+```
+
+Funckja oblicza wartosci calego zamówienia na podstawie `OrderDetails`
 
 ## Triggery
 
-(dla każdego triggera należy wkleić kod polecenia definiującego trigger wraz z komentarzem)
+### Trigger: Update order status after payment
 
 ```sql
--- ...
+CREATE TRIGGER tr_Payments_UpdateOrderStatus
+ON Payments
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    -- które zostały dotknięte przez nowe/zmienione płatności
+    DECLARE @AffectedOrderIds TABLE (OrderID INT PRIMARY KEY);
+
+    -- Zbierz wszystkie ID zamówień powiązane ze wstawionymi/zmienionymi płatnościami
+    INSERT INTO @AffectedOrderIds (OrderID)
+    SELECT DISTINCT OrderId FROM inserted;
+
+    -- Aktualizacja statusu w tabeli Orders
+    UPDATE o
+    SET o.Status = 2 -- Ustawienie statusu na np. ID 2 = 'Opłacone'
+    FROM Orders o
+    INNER JOIN @AffectedOrderIds aoi ON o.OrderID = aoi.OrderID
+    WHERE
+        -- Zamówienie jest obecnie w statusie 'Nieoplaconeć' (np. ID 1)
+        o.Status = 1
+        AND
+        -- Suma wszystkich płatności dla danego OrderID
+        (
+            SELECT SUM(p.Amount)
+            FROM Payments p
+            WHERE p.OrderId = o.OrderId
+        ) >= dbo.CalculateOrderValue_FN(o.OrderId); -- Sprawdzenie, czy suma płatności >= Wartość Zamówienia
+END
+GO
 ```
+
+Tirgger zmienia status zamowienia z 1 (nieoplacone) na 2 (oplacone) gdy w tablei `Payments` pojawi sie platność/płatności których suma jest wieksza od wartości zamowienia.
 
 # 4. Inne
 

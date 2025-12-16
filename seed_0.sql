@@ -160,13 +160,7 @@ INSERT INTO ProductsDetails (ProductId, PartId, Quantity) VALUES
 (21, 5, 7),
 (21, 13, 4);
 
--- CUSTOMER TYPE
-SET IDENTITY_INSERT CustomerType ON;
-INSERT INTO CustomerType (TypeId, TypeName) VALUES
-(1, 'Indywidualny'),
-(2, 'Bizens');
 
-SET IDENTITY_INSERT CustomerType OFF;
 
 -- CUSTOMERS
 SET IDENTITY_INSERT Customers ON;
@@ -179,29 +173,6 @@ INSERT INTO Customers (CustomerID, CustomerType, CustomerName, [Address], Countr
 (5, 2, 'Szkoła Podstawowa nr 5', 'ul. Szkolna 1', 'Polska', 'Poznań', 'Wielkopolskie', '60-005', '61 878 90 00');
 
 SET IDENTITY_INSERT Customers OFF;
-
-SET IDENTITY_INSERT OrderStatus ON;
-
-INSERT INTO OrderStatus (OrderStatusID, OrderStatusName) VALUES
-(1, 'Przyjęte'),
-(2, 'W realizacji'),
-(3, 'Gotowe do wysyłki'),
-(4, 'Zrealizowane'),
-(5, 'Anulowane');
-
-SET IDENTITY_INSERT OrderStatus OFF;
-
-
-SET IDENTITY_INSERT ProductionOrderStatus ON;
-
-INSERT INTO ProductionOrderStatus (ProductionOrderStatus, Status) VALUES
-(1, 'Planowane'),
-(2, 'W toku'),
-(3, 'Gotowe'),
-(4, 'Anulowane');
-
-SET IDENTITY_INSERT ProductionOrderStatus OFF;
-
 
 -- PRODUCTION LINES
 SET IDENTITY_INSERT ProductionLine ON;
