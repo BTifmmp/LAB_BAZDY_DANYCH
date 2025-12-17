@@ -1206,3 +1206,19 @@ Tirgger zmienia status zamowienia z 1 (nieoplacone) na 2 (oplacone) gdy w tablei
 # 4. Inne
 
 (informacja o sposobie wygenerowania danych, uprawnienia …)
+
+# Plan
+
+trigger production history -> products\
+trigger prodducts -> order - zminaa statusu\
+trigger order status -> reserved - usnuniecie\
+trigger order status -> redukcja availble\
+
+procedure delist/remove procduct procedure\
+triggery po useunieciu produktu\
+
+anulowanie zamowienia produckji - procedury\
+
+modyfikacja/anulowanie zamowienia - procedury\
+
+procedura na tworzenie newOrder vustoemr

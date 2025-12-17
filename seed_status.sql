@@ -23,6 +23,6 @@ SET IDENTITY_INSERT ProductionOrderStatus OFF;
 SET IDENTITY_INSERT CustomerType ON;
 INSERT INTO CustomerType (TypeId, TypeName) VALUES
 (1, 'Indywidualny'),
-(2, 'Bizens');
+(2, 'Biznes');
 
 SET IDENTITY_INSERT CustomerType OFF;

@@ -1,11 +1,11 @@
-CREATE VIEW v_OrderSummary AS
+CREATE OR ALTER VIEW v_OrderSummary AS
 SELECT
     o.OrderID,
     o.OrderDate,
     c.CustomerName,
     ct.TypeName AS CustomerType,
     os.OrderStatusName,
-    SUM(od.Quantity * od.UnitPrice * (1.0 - od.Discount)) AS TotalOrderValue,
+    dbo.CalculateOrderValue_FN(o.OrderId) AS TotalOrderValue,
     COUNT(od.ProductId) AS UniqueProductsCount,
     SUM(od.Quantity) AS TotalProductsCount,
     o.ShipCity,
