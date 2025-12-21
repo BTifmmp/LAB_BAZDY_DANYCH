@@ -284,5 +284,21 @@ ALTER TABLE Products ADD CONSTRAINT Products_ProductCategories
     FOREIGN KEY (ProductCategoryId)
     REFERENCES ProductCategories (ProductCategoryID);
 
--- End of file.
 
+
+
+-- auto-generated definition
+create type dbo.OrderItem as table
+(
+    ProductID int                     not null
+        primary key,
+    Quantity  int                     not null
+        check ([Quantity] > 0),
+    Discount  decimal(5, 2) default 0 not null
+        check ([Discount] >= 0 AND [Discount] <= 1)
+)
+go
+
+
+
+-- End of file.
