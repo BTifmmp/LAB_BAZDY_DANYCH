@@ -1209,7 +1209,7 @@ Tirgger zmienia status zamowienia z 1 (nieoplacone) na 2 (oplacone) gdy w tablei
 
 # Plan
 
-trigger production history -> products\
+trigger production history -> products\ DONE
 trigger prodducts -> order - zminaa statusu\
 trigger order status -> reserved - usnuniecie\
 trigger order status -> redukcja availble\
