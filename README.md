@@ -1174,7 +1174,7 @@ Po dodaniu/edycji płatności sprawdza sumę kwot w tabeli Payments dla danego z
 Jeśli Suma >= Wynik funkcji CalculateOrderValue_FN, status w tabeli Orders zmienia się na 2.
 
 ```sql
-CREATE TRIGGER tr_Payments_UpdateOrderStatus
+CREATE OR ALTER TRIGGER tr_Payments_UpdateOrderStatus
 ON Payments
 AFTER INSERT, UPDATE
 AS
