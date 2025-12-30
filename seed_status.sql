@@ -2,10 +2,9 @@ SET IDENTITY_INSERT OrderStatus ON;
 INSERT INTO OrderStatus (OrderStatusID, OrderStatusName) VALUES
 (1, 'Nieopłacone'),
 (2, 'Opłacone'),
-(3, 'W realizacji'),
-(4, 'Gotowe do wysyłki'),
-(5, 'Zrealizowane'),
-(6, 'Anulowane');
+(3, 'Gotowe do wysyłki'),
+(4, 'Zrealizowane'),
+(5, 'Anulowane');
 
 SET IDENTITY_INSERT OrderStatus OFF;
 
