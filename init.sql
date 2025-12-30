@@ -1,5 +1,5 @@
 -- Created by Redgate Data Modeler (https://datamodeler.redgate-platform.com)
--- Last modification date: 2025-12-15 21:27:34.621
+-- Last modification date: 2025-12-20 16:57:33.741
 
 -- tables
 -- Table: CustomerType
@@ -141,7 +141,6 @@ CREATE TABLE ProductionOrder (
     ProductId int  NOT NULL,
     Quantity int  NOT NULL CHECK (Quantity>0),
     QuantityProduced int  NOT NULL DEFAULT 0 CHECK (QuantityProduced>=0),
-    QuantityAllocated int  NOT NULL DEFAULT 0 CHECK (QuantityAllocated>=0),
     AddedDate date  NOT NULL,
     PlannedStartDate datetime  NOT NULL,
     PlannedEndDate datetime  NOT NULL,
@@ -150,7 +149,6 @@ CREATE TABLE ProductionOrder (
     CONSTRAINT CHK_AddDate CHECK (AddedDate<=PlannedStartDate),
     CONSTRAINT CHK_PlannedDates CHECK (PlannedStartDate<=PlannedEndDate),
     CONSTRAINT CHK_RealDates CHECK (EndDate is Null OR StartDate<=EndDate ),
-    CONSTRAINT CHK_QuantityAllocated_Quantity CHECK (Quantity>=QuantityAllocated),
     CONSTRAINT ProductionOrder_pk PRIMARY KEY  (ProductionOrderID)
 );
 
@@ -172,6 +170,7 @@ CREATE TABLE Products (
     Available int  NOT NULL DEFAULT 0 CHECK (Available>=0),
     Reserved int  NOT NULL DEFAULT 0 CHECK (Reserved>=0),
     MinimalQuantity int  NOT NULL CHECK (MinimalQuantity>=0),
+    Removed bit  NOT NULL DEFAULT 0,
     CONSTRAINT ProductID PRIMARY KEY  (ProductId)
 );
 
@@ -287,3 +286,21 @@ ALTER TABLE Products ADD CONSTRAINT Products_ProductCategories
 -- End of file.
 
 
+
+
+
+-- auto-generated definition
+create type dbo.OrderItem as table
+(
+    ProductID int                     not null
+        primary key,
+    Quantity  int                     not null
+        check ([Quantity] > 0),
+    Discount  decimal(5, 2) default 0 not null
+        check ([Discount] >= 0 AND [Discount] <= 1)
+)
+go
+
+
+
+-- End of file.
