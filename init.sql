@@ -283,7 +283,7 @@ ALTER TABLE Products ADD CONSTRAINT Products_ProductCategories
     FOREIGN KEY (ProductCategoryId)
     REFERENCES ProductCategories (ProductCategoryID);
 
--- End of file.
+
 
 
 
