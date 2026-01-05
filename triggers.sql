@@ -123,9 +123,10 @@ GO
 -------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------
 -- Utrzymuje aktualna liczby zarezerwowanych sztuk w tabeli Products.
--- Reaguje na każdą zmianę w tabeli ProductReservation. Dodaje ilości z 'inserted' (nowe rezerwacje) 
--- i odejmuje ilości z 'deleted' (koniec rezerwacji) od kolumny Products.Reserved.
-CREATE OR ALTER TRIGGER trg_ProductReservation_UpdateProductsReserved
+-- Reaguje na każdą zmianę w tabeli ProductReservation. Dodaje ilości z 'inserted' (nowe rezerwacje).
+-- Sprawdza czy dalej możliwa jest produkcja w terminie podanym przez klienta.
+-- Odejmuje ilości z 'deleted' (koniec rezerwacji) od kolumny Products.Reserved.
+CREATE   TRIGGER trg_ProductReservation_UpdateProductsReserved
 ON ProductReservation
 AFTER INSERT, UPDATE, DELETE
 AS
@@ -135,6 +136,27 @@ BEGIN
     -- 1. Obsługa nowych rezerwacji lub zwiększenia ilości (INSERT/UPDATE)
     IF EXISTS (SELECT 1 FROM inserted)
     BEGIN
+        DECLARE @Deadline date
+        
+        select @Deadline=o.RequiredDate
+        from inserted i
+        inner join Orders o on o.OrderID=i.OrderID
+        
+        DECLARE @Items OrderItem
+
+        insert into @Items(ProductID,Quantity,Discount)
+        select i.ProductId,i.Quantity,od.Discount
+        from inserted i
+        inner join OrderDetails od on od.OrderID=i.OrderID and od.ProductId=i.ProductID
+        
+        begin try
+            EXEC RedirectItems @Items = @Items, @Deadline = @Deadline
+        end try
+        begin catch
+            throw
+        end catch
+
+
         UPDATE p
         SET p.Reserved = ISNULL(p.Reserved, 0) + i.TotalQty
         FROM Products p
@@ -143,6 +165,10 @@ BEGIN
             FROM inserted 
             GROUP BY ProductID
         ) i ON p.ProductId = i.ProductID;
+
+
+        
+
     END
 
     -- 2. Obsługa usuniętych rezerwacji lub starej ilości przy zmianie (DELETE/UPDATE)
@@ -157,8 +183,12 @@ BEGIN
             GROUP BY ProductID
         ) d ON p.ProductId = d.ProductID;
     END
+
+
 END
-GO
+go
+
+
 -------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------
 -- Sprawdza czy nowa dostawa towaru pozwala na realizację oczekujących zamówień, 
