@@ -1,5 +1,5 @@
 -- Created by Redgate Data Modeler (https://datamodeler.redgate-platform.com)
--- Last modification date: 2025-12-20 16:57:33.741
+-- Last modification date: 2026-01-04 20:34:20.518
 
 -- tables
 -- Table: CustomerType
@@ -53,6 +53,7 @@ CREATE TABLE Orders (
     OrderDate date  NOT NULL,
     CompletionDate date  NULL,
     ShipDate date  NULL,
+    RequiredDate date  NOT NULL,
     CONSTRAINT CHK_DATE CHECK ((CompletionDate is NULL OR OrderDate<=CompletionDate )  AND ( ShipDate is NULL OR CompletionDate<=ShipDate )),
     CONSTRAINT Orders_pk PRIMARY KEY  (OrderID)
 );
@@ -284,7 +285,6 @@ ALTER TABLE Products ADD CONSTRAINT Products_ProductCategories
     REFERENCES ProductCategories (ProductCategoryID);
 
 -- End of file.
-
 
 
 
