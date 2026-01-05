@@ -25,6 +25,7 @@ go
 
 -------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------
+
 -- Funkcja sprawdza w jakim dniu zostanie wyprodukowana podana ilość produktu dla zadanego zamówienia produkcyjnego
 -- Funkcja w pierwszej kolejności sprawdza wpisy z ProductionHistory, jeśli ich nie ma szacuje możliwości produkcyjne
 CREATE   function CalculateWhenQuantityOfProductWillBeProduced(
@@ -107,6 +108,7 @@ go
 
 -------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------
+
 -- Procedura tworzy nowe zamówienie produkcyjne.
 -- Zamówienie zaczyna się od końca ostatniego zamówienia lub od następnej pełnej godziny lub od początku zmiany następnego dnia gdzie możliwa jest produkcja
 CREATE procedure CreateNewProductionOrder
@@ -302,6 +304,10 @@ go
 -------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------
 
+-- Procedura sprawdza czy akutalne zamówienia produkcyjne są w stanie wyprodukować @Quantity produktów.
+-- Jeśli nie tworzy nowe zamówienie produkcyjne
+-- Jeśli nie można wyrpodukować potrzebnej ilości produktów zwraca błąd
+-- Flaga @OnlyCheck informuje o tym czy system ma tylko sprawdzić możliwośći produkcyjne.
 
 CREATE procedure RedirectAndCreateNewOrder
 @ProductID int ,
@@ -471,9 +477,11 @@ as
 go
 
 
+-------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------
 
 -- Procedura dla każdego produktu z @Items wykonuje procedure RedirectAndCreateNewOrder
--- @OnlyCheck = 1 sprawi, że żadne wiersze nie zostaną dodane
+-- @OnlyCheck = 1, sprawi że system sprawdzi tylko możliwości produkcyjne. Nie zostaną dodane żadne nowe wiersze
 CREATE procedure RedirectItems
 @Items OrderItem READONLY,
 @Deadline date,
