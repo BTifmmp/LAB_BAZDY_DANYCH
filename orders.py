@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 ORDER_COUNT = 400
 CUSTOMER_IDS = [1, 2, 3, 4, 5]
 
-STATUS_IDS = [1, 2, 3, 4, 5]
+STATUS_IDS = [1, 3, 4, 5]
 STATUS_70_PERCENT_ID = 4
 STATUSES_WITH_NULL_DATES = [1, 5]
 STATUS_READY_TO_SHIP = 3
