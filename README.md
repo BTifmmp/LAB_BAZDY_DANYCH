@@ -56,10 +56,10 @@ Maciej Życki
 
 ## Schemat bazy danych
 
-Diagram v0\
+Diagram v0 (początkowy schemat bazy danych)\
 ![schemat photo0](schemat_photo0.png)
 
-Diagram v1\
+Diagram v1 (końcowy schemat, zaimplementowany w bazie)\
 ![schemat photo1](schemat_photo1.png)
 
 ## Schemat dzialania zamówień
@@ -76,16 +76,16 @@ Jeśli ta wartość jest większa niż n oraz k możemy wysłać te produkty nat
 Jeśli brakuje nam produktów na jakąkolwiek pozycje zamówienia, zwiększamy wartość Reserved we wszystkich produktach o ilość sztuk zamówionego produktu.\
 Załóżmy, że brakuje nam q sztuk produktu. \
 Sprawdzamy czy jesteśmy w stanie wyprodukować q sztuk do daty maksymalnego czekania podanej przez klienta.\
-Na początku sprawdzamy czy mamy jakieś Production Order, które nie mają QuantityAllocated=Quantity.\
-Dla każdego takiego Production Order przekierowujemy produkcje, która miała uzupełnić braki na nowe zamówienie klienta. Robiąc to kontrolujemy czas w którym wyprodukowane są brakujące produkty. Jeśli Production Order nie jest w stanie wypełnić zamówienia klienta cała jego pozostała produkcja (Quantity-QuantityAllocated) zostaje zarezerwowana przez nowe zamówienie. Robimy to do momentu aż skończą się Production Order z QuantityAllocated < Quantity lub gdy w całości zaspokoimy zapotrzebowanie na ten produkt lub przekroczymy date podaną przez klienta.\
- Gdy natrafimy na Production Order, które w całości jest w stanie pokryć zapotrzebowanie na wymaganą liczbę produktów obliczamy przybliżoną date wyprodukowania ich. To zamówienie mogło wczesniej mieć zaalokowane produkty dla innego zamówienia. Więc sprawdzamy kiedy wyprodukujemy q sztuk + QuantityAllocated. Jeśli zamówienie było już w produkcji pobieramy dane z ProductionHistory.\
+Na początku sprawdzamy wszystkie aktywne zamówienia produkcyjne na te produkty.\
+Dla każdego takiego Production Order przekierowujemy produkcje, która miała uzupełnić braki na nowe zamówienie klienta.
+ Gdy natrafimy na Production Order, które w całości jest w stanie pokryć zapotrzebowanie na wymaganą liczbę produktów obliczamy przybliżoną date wyprodukowania ich. Jeśli zamówienie było już w produkcji pobieramy dane z ProductionHistory.\
 Jeśli nie ma wpisu z dnia, który nas interesuje sprawdzamy szacunkową ilość wyprodukowanego produktu w ten dzień, uwzględniając godziny przestoju lini (DowntimeHours).\
-Dzień w którym wyprodukujemy więcej lub tyle samo sztuk produktu co q+QuantityAllocated, jest dniem w którym możemy wysłać ten produkt.\
+Dzień w którym wyprodukujemy więcej lub tyle samo sztuk produktu co Available-Reserved-q, jest dniem w którym możemy wysłać ten produkt.\
 Załóżmy, że nie byliśmy w stanie znaleźć q sztuk do przekierowania. Po całej operacji zostaje nam x sztuk, których klient oczekuje.\
- Tworzymy nowe zlecenie na x sztuk z QuantityAllocated=x, informuje to system, że ten Production Order jest stworzony na uzupełnienie jakiegoś zamówienia i nie możemy przekierować z niego żadnego produktu. Tworząc ProductionOrder sprawdzamy czy nie zostanie przekroczona data podana przez klienta.\
+ Tworzymy nowe zlecenie na x sztuk. Tworząc ProductionOrder sprawdzamy czy nie zostanie przekroczona data podana przez klienta.\
 Gdy spełnimy wszystkie te warunki możemy przyjąć zamówienie.
 
-Każdy wpis w Production History, który zawiera Rejected Quantity przesuwa wszystkie trwające oraz zaplanowane produkcje na lini o RejectedQuantity\*EstimatedProductionTime w przód
+Każdy wpis w Production History, który zawiera Rejected Quantity przesuwa wszystkie trwające oraz zaplanowane produkcje na lini o RejectedQuantity*EstimatedProductionTime w przód
 
 ### Schemat działania produkcji
 
@@ -170,6 +170,7 @@ CREATE TABLE Orders (
    OrderDate date  NOT NULL,
    CompletionDate date  NULL,
    ShipDate date  NULL,
+   RequiredDate date  NOT NULL,
    CONSTRAINT Orders_pk PRIMARY KEY  (OrderID),
 
    CONSTRAINT CHK_DATE CHECK ((CompletionDate is NULL OR OrderDate<=CompletionDate )  AND ( ShipDate is NULL OR CompletionDate<=ShipDate )),
@@ -187,20 +188,21 @@ CREATE TABLE Orders (
 );
 ```
 
-| Nazwa atrybutu | Typ         | Opis/Uwagi                                                          |
-| -------------- | ----------- | ------------------------------------------------------------------- |
-| OrderID        | int         | Auto-inkrementowany klucz główny, unikalny identyfikator zamówienia |
-| CustomerID     | int         | Klucz obcy,identyfikator klienta                                    |
-| EmployeeID     | int         | Klucz obcy,identyfikator pracownika                                 |
-| Status         | int         | Klucz obcy,identyfikator statusu                                    |
-| ShipAddress    | varchar(50) | Adres wysyłki                                                       |
-| ShipCountry    | varchar(50) | Kraj adresu wysyłki                                                 |
-| ShipCity       | varchar(50) | Miasto adresu wysyłki                                               |
-| ShipRegion     | varchar(20) | Region adresu wysyłki                                               |
-| ShipPostalCode | varchar(20) | Kod pocztowy adresu wysyłki                                         |
-| OrderDate      | date        | Data zamówienia                                                     |
-| CompletionDate | date        | Data skompletowania zamówienia                                      |
-| ShipDate       | date        | Data wysłania zamówienia                                            |
+| Nazwa atrybutu | Typ         | Opis/Uwagi                                                           |
+| -------------- | ----------- | -------------------------------------------------------------------- |
+| OrderID        | int         | Auto-inkrementowany klucz główny, unikalny identyfikator zamówienia  |
+| CustomerID     | int         | Klucz obcy,identyfikator klienta                                     |
+| EmployeeID     | int         | Klucz obcy,identyfikator pracownika                                  |
+| Status         | int         | Klucz obcy,identyfikator statusu                                     |
+| ShipAddress    | varchar(50) | Adres wysyłki                                                        |
+| ShipCountry    | varchar(50) | Kraj adresu wysyłki                                                  |
+| ShipCity       | varchar(50) | Miasto adresu wysyłki                                                |
+| ShipRegion     | varchar(20) | Region adresu wysyłki                                                |
+| ShipPostalCode | varchar(20) | Kod pocztowy adresu wysyłki                                          |
+| OrderDate      | date        | Data zamówienia                                                      |
+| CompletionDate | date        | Data skompletowania zamówienia                                       |
+| ShipDate       | date        | Data wysłania zamówienia                                             |
+| RequiredDate   | date        | Data maksymalnego czekania na zamówienie zadeklarowana przez klienta |
 
 ### Tabela: Payments
 
@@ -265,9 +267,7 @@ CREATE TABLE Parts (
     PartId int  NOT NULL IDENTITY(1, 1),
     ProductCategoryId int  NOT NULL,
     PartName varchar(50) NOT NULL,
-    Available int  NOT NULL,
-    Reserved int  NOT NULL DEFAULT 0 CHECK (Reserved>=0),
-    MinimalQuantity int  NOT NULL DEFAULT 0 CHECK (MinimalQuantity>=0),
+    PartPrice money not NULL,
     CONSTRAINT Parts_pk PRIMARY KEY  (PartId)
 
     CONSTRAINT Parts_PartsCategories  FOREIGN KEY (ProductCategoryId)
@@ -277,13 +277,13 @@ CREATE TABLE Parts (
 
 **Opis:** Tabela przechowuje informacje o częściach/komponentach wykorzystywanych w produkcji.
 
-| Nazwa atrybutu                    | Typ | Opis/Uwagi                                                          |
-| --------------------------------- | --- | ------------------------------------------------------------------- |
-| PartId                            | int | Klucz główny, unikalny identyfikator części                         |
-| PartsCategories_ProductCategoryId | int | Klucz obcy do tabeli PartsCategories, identyfikuje kategorię części |
-| Available                         | int | Liczba dostępnych sztuk części na magazynie                         |
-| Reserved                          | int | Liczba zarezerwowanych sztuk części                                 |
-| MinimalQuantity                   | int | Minimalna ilość części, która powinna być utrzymywana na magazynie  |
+| Nazwa atrybutu                    | Typ         | Opis/Uwagi                                                          |
+| --------------------------------- | ----------- | ------------------------------------------------------------------- |
+| PartId                            | int         | Klucz główny, unikalny identyfikator części                         |
+| PartsCategories_ProductCategoryId | int         | Klucz obcy do tabeli PartsCategories, identyfikuje kategorię części |
+| PartName                          | varchar(50) | Nazwa części                                                        |
+| PartPrice                         | money       | Cena części                                                         |
+
 
 ---
 
@@ -334,6 +334,7 @@ CREATE TABLE Products (
     Available int  NOT NULL,
     Reserved int  NOT NULL DEFAULT 0 CHECK (Reserved>=0),
     MinimalQuantity int  NOT NULL CHECK (MinimalQuantity>=0),
+    Removed bit not NULL,
     CONSTRAINT ProductID PRIMARY KEY  (ProductId)
 
     CONSTRAINT Products_ProductCategories FOREIGN KEY (ProductCategoryId)
@@ -351,6 +352,7 @@ CREATE TABLE Products (
 | Available                        | int   | Liczba dostępnych sztuk produktu na magazynie                           |
 | Reserved                         | int   | Liczba zarezerwowanych sztuk produktu                                   |
 | MinimalQuantity                  | int   | Minimalna ilość produktu, która powinna być utrzymywana na magazynie    |
+| Removed                          | bit   | Flaga określająca czy produkt został wycofany                           |
 
 ---
 
@@ -809,144 +811,329 @@ select a from tab1
 
 (dla każdej procedury/funkcji należy wkleić kod polecenia definiującego procedurę wraz z komentarzem)
 
+### Funkcja CalculateEfficiencyFactor
+
+Funkcja oblicza wskaźnik wydajności dla danej lini produkcyjnej w dany dzień, tzn. jeśli w dniu liczba godzin produkcyjnych wynosi 200, a linia pracuje od 8:00 do 20:00 wskaźnik wydajności wynosi 200/12.
+
+```sql
+CREATE function CalculateEfficiencyFactor(@Date date,@ProductionLineID int)
+returns decimal(16,6)
+-- Funkcja oblicza ile mocy przerobowej posiada linia w podanym w dniu w rzeczywistej godzinie pracy lini.
+as
+    begin
+        Declare @EfficiencyFactor decimal(16,6)
+
+        IF EXISTS (
+            SELECT 1
+            FROM ProductionLineTimeAllocation
+            WHERE ProductionLineId = @ProductionLineID
+            AND Date = @Date
+
+            )
+        begin
+            select @EfficiencyFactor=60*(HoursTotal-DowntimeHours)/datediff(minute ,ShiftStart,ShiftEnd)
+            from ProductionLineTimeAllocation
+            where ProductionLineId=@ProductionLineID
+            and Date=@Date
+        end
+        return @EfficiencyFactor
+    end
+go
+
+```
+
 ### Procedura: RedirectAndCreateNewOrder
+
+Główna procedura do nowych zamówień. Na początku przekierowuje produkcje towarów które nie są skończone, na zamówienie klienta.Jak znajdzie produkcje, która całkowicie uzupełni zamówienie klienta oblicza czas w jakim produkcja ta może wytworzyć potrzebne produkty. Jeśli istniejące produkcje nie wypełnia całkowicie zamówienia tworzy nowe. Procedura zwraca błąd jeśli nie można wyprodukować produktów do podanej daty
 
 ```sql
 CREATE procedure RedirectAndCreateNewOrder
 @ProductID int ,
 @EndDate date,
 @Quantity int,
-@CalculatedDate date output
+@OnlyCheck bit =0
 as
-    set nocount on
+    SET NOCOUNT ON
+    SET XACT_ABORT ON
     DECLARE @UnitProductionTime decimal(3,1)
     DECLARE @ProductionLineID int
+    DECLARE @QuantityToProduce int
 
+    IF not exists(select 1 from Products where ProductId=@ProductID)
+        begin
+            Throw 50000 ,N'Nie ma takiego produktu' ,1;
+        end
+    IF  EXISTS(select 1 from Products where ProductId=@ProductID and Removed=1)
+        begin
+            Throw 50004, N'Podany produkt został wycofany',1;
+        end
     select
            @UnitProductionTime=EstimatedProductionTime,
-           @ProductionLineID=ProductionLineId
+           @ProductionLineID=ProductionLineId,
+           @QuantityToProduce=Reserved-Available+@Quantity
     from Products p
     inner join ProductCategories cat on p.ProductCategoryId = cat.ProductCategoryID
     inner join ProductionLine pt on cat.ProductCategoryID = pt.ProductCategoryId
     Where ProductId=@ProductID
 
+
 --     ----------------------------------------------
---      Try to redirect existing Production Orders
+--      Sprawdź czy akutalne produkcje są w stanie wypełnić wszystkie zamówwienia
 --     ----------------------------------------------
-    Declare @CandidateOrders table(
-        RowID int identity(1,1),
-        ProductionOrderID int,
-        AvailableQuantity int,
-        PlannedEndDate date,
-        QuantityToUse int
-    );
+     select
+         ProductionOrderID,
+         CASE
+             when cumulativeQuantity-availableQuantity>=@QuantityToProduce then 0
+             when cumulativeQuantity<=@QuantityToProduce then availableQuantity
+             else @QuantityToProduce-(cumulativeQuantity-availableQuantity)
+         END as quantityToUse,
+         cumulativeQuantity,
+         PlannedEndDate
+    into
+        #cumulativeOrderStats
+    from (
+            select
+                ProductionOrderID,
+                Quantity-QuantityProduced as availableQuantity,
+                sum(Quantity-QuantityProduced) over ( order by PlannedEndDate ASC) as cumulativeQuantity,
+                PlannedEndDate
+            from ProductionOrder pd
+            inner join ProductionOrderStatus pos on pd.ProductionOrderStatus = pos.ProductionOrderStatus
+            where
+                ProductId=@ProductID
+                and cast(PlannedStartDate as date)<=@EndDate
+                and Status not in ('Gotowe','Anulowane')
+                and Quantity>QuantityProduced
 
-    INSERT INTO @CandidateOrders(ProductionOrderID, AvailableQuantity, PlannedEndDate)
-    select ProductionOrderID,Quantity-QuantityAllocated,PlannedEndDate
-    from ProductionOrder po
-    inner join ProductionOrderStatus ps on po.ProductionOrderStatus = ps.ProductionOrderStatus
-    where
-        Quantity>QuantityAllocated and
-        Status<>'Gotowe' and
-        ProductId=@ProductID and
-        PlannedStartDate<=@EndDate
-    order by PlannedStartDate ASC
+         ) as orderStats
 
-    DECLARE @RemaingingQuantity int = @Quantity
-
-    DECLARE @CurrentPO_ID INT;
-    DECLARE @CurrentPO_Available INT;
-    DECLARE @CurrentPO_FinishDate DATE;
-    DECLARE @CurrentPO_RowID INT = 1;
-
-    while @RemaingingQuantity>0 and EXISTS (select 1 from @CandidateOrders where RowID=@CurrentPO_RowID)
-    begin
-        select
-            @CurrentPO_Available=AvailableQuantity,
-            @CurrentPO_FinishDate=PlannedEndDate,
-            @CurrentPO_ID=ProductionOrderID
-        from @CandidateOrders
-        where RowID=@CurrentPO_RowID
-
-        IF @CurrentPO_Available>=@RemaingingQuantity
-        begin
---             this production order will satisfy all remainging quantity
-                Update @CandidateOrders
-                set QuantityToUse=@RemaingingQuantity where RowID=@CurrentPO_RowID
+    Declare @RemainingQuantity int
+    Declare @EndDateForLastProductionOrder date
+    Declare @LastUsedQuantity int
+    Declare @ProductionOrderID int
 
 
-                EXEC CalculateWhenQuantityOfProductWillBeProduced @UnitProductionTime = @UnitProductionTime,@ProductionOrderID = @CurrentPO_ID, @EndDate = @CurrentPO_FinishDate, @Quantity = @RemaingingQuantity, @ProductionLineID = @ProductionLineID, @CalculatedDate = @CalculatedDate output
-                set @RemaingingQuantity=0
+    select top 1
+        @RemainingQuantity=@QuantityToProduce-cumulativeQuantity,
+        @EndDateForLastProductionOrder=cast(PlannedEndDate as date),
+        @LastUsedQuantity=quantityToUse,
+        @ProductionOrderID=ProductionOrderID
+    from #cumulativeOrderStats
+    where quantityToUse>0
+    order by cumulativeQuantity DESC
 
-        end
+   
+
+    SET @RemainingQuantity=COALESCE(@RemainingQuantity,@QuantityToProduce)
+    BEGIN TRY
+        IF @RemainingQuantity>0
+            EXEC CreateNewProductionOrder @Deadline = @EndDate, @Quantity = @RemainingQuantity, @ProductID = @ProductID,@OnlyCheck = @OnlyCheck
         ELSE
-            begin
-                Update @CandidateOrders
-                set QuantityToUse=@CurrentPO_Available where RowID=@CurrentPO_RowID
-                set @RemaingingQuantity-=@CurrentPO_Available
-            end
-        set @CurrentPO_RowID+=1
-
-    end
-    update pd
-    set QuantityAllocated = QuantityAllocated+QuantityToUse
-    from ProductionOrder pd
-    inner join @CandidateOrders cd on pd.ProductionOrderID=cd.ProductionOrderID
-
-    IF @RemaingingQuantity>0
--- ------------------------------------------------------------------------------------------------
---        Cant redirect all quantity to existing productionOrders, so create new ProductionOrder
---  ------------------------------------------------------------------------------------------------
-    BEGIN
-        EXEC CreateNewOrder @Deadline = @EndDate,@Quantity = @RemaingingQuantity,@QuantityAllocated = @RemaingingQuantity,@ProductID = @ProductID,@ProductionLineID = @ProductionLineID,@ReturnDate = @CalculatedDate OUTPUT
-    end
+            IF  dbo.CalculateWhenQuantityOfProductWillBeProduced(@ProductionOrderID,@LastUsedQuantity)>@EndDate
+                begin
+                    THROW 50000,N'Nie można wyprodukować podanych produktów w podanym czasie',1;
+                end
+    end try
+    begin catch
+        THROW 
+    end catch
 go
-
 
 ```
 
-Główna procedura do nowych zamówień. Na początku przekierowuje produkcje towarów które nie są skończone oraz posiadają nie zaalokowane produkty, na zamówienie klienta.Jak znajdzie produkcje, która całkowicie uzupełni zamówienie klienta oblicza czas w jakim produkcja ta może wytworzyć potrzebne produkty. Jeśli istniejące produkcje nie wypełnia całkowicie zamówienia tworzy nowe. Procedura zwraca szacowaną date, dla której zamówienia klienta może być spenione.
+### Procedura: createCustomerOrder
+
+Procedura tworzy zamówienie klienta, jeśli produkty mogą zostać wyprodukowane do maksymalnego czasu oczekiwania przez klienta
+
+```sql
+CREATE PROCEDURE    createCustomerOrder
+@CustomerID int,
+@Items OrderItem READONLY ,
+@Deadline date,
+@ShipAddress varchar(50) = null,
+@ShipCountry varchar(50) = null,
+@ShipCity varchar(50) = null,
+@ShipRegion varchar(50) = null,
+@ShipPostalCode varchar(10) = null
+--     Procedura wymaga utworzenia typu tabelarycznego OrderItem. Kod tworzący typ jest w pliku init.sql
+as
+    IF NOT EXISTS(select 1 from Customers where CustomerID=@CustomerID)
+        BEGIN
+            Throw 50001 ,N'Nie ma takiego Klienta', 1;
+        END
+
+    IF EXISTS(select ProductID from @Items except select ProductId from Products)
+        BEGIN
+            THROW 50002 ,N'Jeden lub więcej produktów nie istnieje' ,1;
+        END
+
+    IF EXISTS(select 1 from @Items i
+                inner join Products p on p.ProductId=i.ProductID
+                where Removed=1)
+        BEGIN
+            THROW 50004,N'Jeden lub więcej produktów zostało wycofanych',1;
+        END
+
+      
+   -- Sprawdź czy można wyprodukować podane produkty do @Deadline
+    BEGIN TRY
+        EXEC RedirectItems @Items=@Items,@Deadline = @Deadline,@OnlyCheck = 1
+    end try
+    begin catch
+        THROW
+    end catch
+--         Jesli nie podano adresu, pobierz adres klienta
+    select @ShipAddress=coalesce(@ShipAddress,Address),
+           @ShipCountry=coalesce(@ShipCountry,Country),
+           @ShipCity=coalesce(@ShipCity,City),
+           @ShipRegion=coalesce(@ShipRegion,Region),
+           @ShipPostalCode=coalesce(@ShipPostalCode,PostalCode)
+    from Customers
+    where CustomerID=@CustomerID
+
+    IF @ShipAddress is null or @ShipCountry is null or @ShipCity is null or @ShipRegion is null or @ShipPostalCode is null
+        begin
+            THROW 50003,N'Adres nie jest kompletny' ,1;
+        end
+
+    DECLARE @OrderStatus int
+    select @OrderStatus=OrderStatusID from OrderStatus where OrderStatusName='Nieoplacone'
+
+    Declare @OrderID int
+--     Stwórz nowe zamówienie
+    insert into Orders(CustomerID, Status, ShipAddress, ShipCountry, ShipCity, ShipRegion, ShipPostalCode, OrderDate,RequiredDate)
+    values
+        (@CustomerID,@OrderStatus,@ShipAddress,@ShipCountry,@ShipCity,@ShipRegion,@ShipPostalCode,cast(getdate() as date),@Deadline)
+
+
+    set @OrderID=SCOPE_IDENTITY();
+
+     --     Dodaj pozycje zamówienia
+    insert into OrderDetails(OrderID, ProductId, Quantity, UnitPrice, Discount)
+    select @OrderID,I.ProductId,i.Quantity,p.CurrentSellPrice,i.Discount
+    from @Items i
+    inner join Products p on i.ProductID=p.ProductId
+go
+
+```
+
+### Procedura: RedirectItems
+
+Pomocnicza procedura, która wywołuje procedure  `RedirectAndCreateNewOrder` dla każdego produkty z tabeli `Items`. Flaga `OnlyCheck` dla wartości 1 sprawdza tylko możliwości produkcyjne. Dla wartości 0 dodaje nowe zamówienia produkcyjne w miarę potrzeb. 
+
+```sql
+CREATE procedure RedirectItems
+@Items OrderItem READONLY,
+@Deadline date,
+@OnlyCheck bit = 0
+as
+    DECLARE productCursor cursor keyset FOR
+    select i.ProductId,i.Quantity
+    from @Items i
+        inner join Products p on i.ProductID=p.ProductId
+    where Available-Reserved<i.Quantity
+
+    open productCursor
+
+    if @@CURSOR_ROWS=0
+        begin
+--         Wszystkie produkty są dostępne w magazyanie
+
+            close productCursor
+            deallocate productCursor
+            return
+        end
+-- Dla każdej pozycji zamówienia sprawdź czy można ją wyprodukować do terminu @Deadline. Jeśli @OnlyCheck=0 zostaną też w miare potrzeb stworzone nowe zlecenia produkcyjne. 
+    DECLARE @CurrentProductID int
+    DECLARE @CurrentQuantity int
+    BEGIN TRANSACTION ;
+    begin try
+
+        FETCH NEXT from productCursor into @CurrentProductID,@CurrentQuantity
+        while @@FETCH_STATUS = 0
+        begin
+            exec RedirectAndCreateNewOrder @ProductID = @CurrentProductID, @EndDate = @Deadline,@Quantity = @CurrentQuantity,@OnlyCheck = @OnlyCheck
+
+            FETCH NEXT FROM productCursor into @CurrentProductID,@CurrentQuantity
+        end
+
+        close productCursor
+        deallocate productCursor
+        COMMIT TRANSACTION ;
+        
+    end try
+    begin catch
+
+        close productCursor
+        deallocate productCursor
+        ROLLBACK TRANSACTION ;
+
+        THROW
+
+    end catch
+go
+```
 
 ### Procedura: CalculateWhenQuantityOfProductWillBeProduced
 
-```sql
-CREATE   procedure CalculateWhenQuantityOfProductWillBeProduced
-@UnitProductionTime int,
-@ProductionOrderID int,
-@EndDate date,
-@Quantity int,
-@ProductionLineID int,
-@CalculatedDate date OUTPUT
-as
-    set nocount on
+Procedura oblicza kiedy zostanie wyprodukowana ilość `Quantity` produktów w zadanym zamówieniu produkcyjnym. Dzięki temu nie musimy czekać na koniec zamówienia aby móc przyjąc zamówenie klienta. Obliczając ile w danym dni zostało wytworzone produktów próbuje operować na danych historycznych z ProductionHistory. Jeśli nie ma takich danych, szacuje czas przez EstimatedProductionTime z tabeli Products. \
+Procedura jest przydatna w szczególności jak mamy jedno duże zamówienie produkcyjne.
 
---      when does production start
+```sql
+CREATE   function CalculateWhenQuantityOfProductWillBeProduced(
+    @ProductionOrderID int,
+    @Quantity int
+    )
+returns date
+as
+    begin
     DECLARE @ProductionStartDate datetime
---      Total amount to be produced
-    DECLARE @TotalToBeProduced int
+    DECLARE @ProductionEndDate date
     DECLARE @freeHours int
---      Get when production started
-    select @ProductionStartDate=PlannedStartDate,
-           @TotalToBeProduced=@Quantity+QuantityAllocated
-    from ProductionOrder
+    DECLARE @EstimatedTime decimal(6,2)
+    DECLARE @ProductionLineID int
+
+
+
+    select
+           @ProductionStartDate=PlannedStartDate,
+           @ProductionEndDate=PlannedEndDate,
+           @ProductionLineID=ProductionLineId,
+           @EstimatedTime=EstimatedProductionTime
+    from ProductionOrder pd
+    inner join Products p on pd.ProductID=p.ProductID
     where ProductionOrderID=@ProductionOrderID
 
 
---         Get how many hours line was working on first day
-    select @freeHours=datediff(hour,cast(@ProductionStartDate as time),ShiftEnd)-DowntimeHours
+--     Oblicz ile godzin linia pracowała w pierwszy dzień produkcji
+    select @freeHours=(
+        datediff(
+                minute,
+                cast(@ProductionStartDate as time),
+                ShiftEnd)-DowntimeHours*60)*dbo.CalculateEfficiencyFactor(@ProductionStartDate,@ProductionLineID )/60
     from ProductionLineTimeAllocation
     where Date=cast(@ProductionStartDate as date) and
           ProductionLineId=@ProductionLineID
 
+    DECLARE @Finishday date
     ;WITH capactiy as (
         select
             pta.Date,
             ph.Quantity as RealQuantity,
-            IIF(Date=cast(@ProductionStartDate as date),CAST(@freeHours/@UnitProductionTime as decimal(10,2)),cast((pta.HoursTotal-DowntimeHours)/@UnitProductionTime as decimal(10,2))) as DailyCapacity
+            @freeHours/@EstimatedTime  as DailyCapacity
         from ProductionLineTimeAllocation pta
         left join ProductionHistory ph on ph.ProductionOrderID=@ProductionOrderID and ph.ProducedDate=Date
-        where Date>=cast(@ProductionStartDate as date)
-        and pta.Date<=@EndDate
+        where Date=cast(@ProductionStartDate as date)
+        and pta.ProductionLineId=@ProductionLineID
+        UNION ALL
+        select
+            pta.Date,
+            ph.Quantity as RealQuantity,
+            (pta.HoursTotal-DowntimeHours)/@EstimatedTime as DailyCapacity
+        from ProductionLineTimeAllocation pta
+        left join ProductionHistory ph on ph.ProductionOrderID=@ProductionOrderID and ph.ProducedDate=Date
+        where Date>cast(@ProductionStartDate as date)
+        and pta.Date<=@ProductionEndDate
         and pta.ProductionLineId=@ProductionLineID
 
     ), cumulativeCapacity as (
@@ -957,179 +1144,212 @@ as
             FROM capactiy
     )
 
-     select TOP 1 @CalculatedDate=Date
-     from cumulativeCapacity
-     where CumulatedQuantity>=@TotalToBeProduced
-go
 
+     select TOP 1 @Finishday=Date
+     from cumulativeCapacity
+     where CumulatedQuantity>=@Quantity
+
+    return @Finishday
+
+
+    end
+go
 
 ```
 
-Procedura oblicza datę w której produkcja wyprodukuje produkty już zaalokowane z nowymi. Dzięki temu nie musimy czekać na koniec zamówienia aby móc przyjąc zamówenie klienta. Obliczając ile w danym dni zostało wytworzone produktów próbuje operować na danych historycznych z ProductionHistory. Jeśli nie ma takich danych, szacuje czas przez EstimatedProductionTime z tabeli Products. \
-Procedura jest przydatna w szczególności jak mamy jedno duże zamówienie produkcyjne.
+### Procedura: CreateNewProductionOrder
 
-### Procedura: CreateNewOrder
+Procedura alokuje czas na nowe zamówienie oraz je tworzy. Procedura oblicza dokładne godziny rozpoczęcia oraz zakończenia zamówienia. 
 
 ```sql
-CREATE procedure CreateNewOrder
---     Maximum date when ProductionOrder will end
+CREATE procedure CreateNewProductionOrder
 @Deadline date,
---     Quantity to produce
 @Quantity int,
---     It declares if we crate order to restock shortages or we create order to satify customer demand
-
 @ProductID int,
-@ProductionLineID int,
-@QuantityAllocated int=0,
---     Date when Production Order will end
-@ReturnDate date output
+@OnlyCheck bit=0
 as
---     When production will start
     DECLARE @ProductionStartDate datetime
---     When production will end
     DECLARE @ProductionEndDate datetime
---     Hours available to produce in first day
     DECLARE @HoursAvailableAtFirstDay decimal(10,2)
---     Hours needed to produce at the last day
     DECLARE @HoursAtTheLastDay decimal(10,2)
---     Status of Production Order. If there are no Production Orders planned on this line we can start producing immediately
     DECLARE @ProductionOrderStatus int
---     Today's date
-    DECLARE @CurrentDate date
---      Estimated time to produce @Quantity of Product
     DECLARE @EstimatedTime decimal(10,2)
+    DECLARE @ProductionLineID int
+    DECLARE @ShiftStartOnFirstDay time(0)
+    DECLARE @ShiftEndOnFirstDay time(0)
 
---         Get date of last Production Order
-    select @ProductionStartDate=max(PlannedEndDate)
-    from ProductionOrder pd
-    inner join ProductionOrderStatus ps on pd.ProductionOrderStatus = ps.ProductionOrderStatus
-    where
-        ProductionLineId=@ProductionLineID
-        and ps.Status<>'Wyprodukowane'
-        and ps.Status<>'Anulowane'
-    set @CurrentDate = cast(getdate() as date)
-
-    select @ProductionOrderStatus=ProductionOrderStatus from ProductionOrderStatus where Status='Planowane'
--- If it's null production line is currently not producing anything
-    IF @ProductionStartDate IS NULL
+    IF NOT EXISTS(select 1 from Products where ProductId=@ProductID)
         begin
---      We start production from next full hour
-        set @ProductionStartDate=dateadd(hour,datediff(hour,0,getdate())+1,0)
---      If line is not currently operating we can immediately start new production
-        select @ProductionOrderStatus=ProductionOrderStatus from ProductionOrderStatus where Status='W toku'
-
+            Throw 50001 ,N'Nie ma takiego produktu' ,1;
         end
 
+    IF  EXISTS(select 1 from Products where ProductId=@ProductID and Removed=1)
+        begin
+            Throw 50004, N'Podany produkt został wycofany',1;
+        end
+    IF @Deadline<cast(getdate() as date)
+        BEGIN
+           THROW 50005, N'Data nie może być w przeszłości', 1;
+        END
 
---     Estimate time needed to produce @Quantity of Product
-    select @EstimatedTime=@Quantity*EstimatedProductionTime from Products where ProductId=@ProductID
+    select
+        @ProductionLineID=ProductionLineId,
+        @EstimatedTime=@Quantity*EstimatedProductionTime
+    from Products p
+    inner join ProductCategories cat on p.ProductCategoryId = cat.ProductCategoryID
+    inner join ProductionLine pl on cat.ProductCategoryID = pl.ProductCategoryId
+    where ProductId=@ProductID
 
---     Check if ProductionLine can produce at that day
+--   Pobierz date, gdy skończy się ostatnia produkcja i dalej w tym dniu możemy coś produkować. Jeśli nie ma takiej daty, produkcję zaczynamy od następnej pełnej godziny
+    select @ProductionStartDate=coalesce(
+                                         max(PlannedEndDate),
+                                         dateadd(hour,datediff(hour,0,getdate())+1,0)
+                                        )
+    from ProductionOrder pd
+    inner join ProductionOrderStatus ps on pd.ProductionOrderStatus = ps.ProductionOrderStatus
+    inner join ProductionLineTimeAllocation plt on plt.ProductionLineId=pd.ProductionLineId
+    where
+        pd.ProductionLineId=@ProductionLineID
+        and ps.Status not in('Wyprodukowane','Anulowane')
+        and HoursTotal>HoursAllocated
+        and Date>=cast(getdate() as date)
+
+    
+    select @ShiftStartOnFirstDay=ShiftStart,
+           @ShiftEndOnFirstDay=ShiftEnd
+    from ProductionLineTimeAllocation
+    where ProductionLineId=@ProductionLineID
+    and Date=cast(@ProductionStartDate as date)
+--     W przypadku gdy zaczynamy produkcję od następnej pełnej godziny, sprawdź czy godzina zawiera się pomiędzy ShiftStart a ShiftEnd.
+--     Jeśli godzina rozpoczęcia jest większa od ShiftEnd zaczynamy produkcję od ShiftStart z następnego dnia gdzie jest możliwa produkcja
+--     Jeśli godzina rozpoczęcia jest mniejsza od ShiftStart zaczynamy produkcję od ShiftStart z tego samego dnia
+    
+    select @ProductionStartDate=
+        CASE
+            WHEN cast(@ProductionStartDate as time(0)) >= @ShiftEndOnFirstDay
+                THEN DATEADD(
+                             minute,
+                             60*DATEPART(hour,ShiftStart)+DATEPART(minute,ShiftStart),
+                             cast(Date as datetime))
+            WHEN cast(@ProductionStartDate as time(0))<@ShiftStartOnFirstDay
+                THEN dateadd(
+                            minute,
+                            60*DATEPART(hour,@ShiftStartOnFirstDay)+DATEPART(minute,@ShiftStartOnFirstDay),
+                            cast(CAST(@ProductionStartDate as date) as datetime)
+                     )
+            Else @ProductionStartDate
+        END
+    FROM ProductionLineTimeAllocation
+    where ProductionLineId=@ProductionLineID
+    and DATE>cast(@ProductionStartDate as date)
+    and HoursTotal-HoursAllocated-DowntimeHours>0
 
 
-    select TOP 1
-        @ProductionStartDate=IIF(Date<>cast(@ProductionStartDate as date) or cast(@ProductionStartDate as time) >= ShiftEnd or  cast(@ProductionStartDate as time)<ShiftStart,dateadd(hour,datepart(hour,ShiftStart),cast(Date as datetime2(0))),@ProductionStartDate),
-        @HoursAvailableAtFirstDay=datediff(hour,cast(@ProductionStartDate as time),ShiftEnd)-DowntimeHours
-    from ProductionLineTimeAllocation where Date>=cast(@ProductionStartDate as date) and ProductionLineId=@ProductionLineID and HoursTotal-HoursAllocated>0
+-- Pobierz liczbę godzin dostępną w pierwszy dzień produkcji teggo zamówienia, jest to różnica czasu między początkiem zamówienia a końcem zmiany przeskalowana w odpowiedni spsoób.
+
+    select @HoursAvailableAtFirstDay=datediff(minute,
+                                              cast(@ProductionStartDate as time(0)),
+                                              ShiftEnd
+                                                )*1.0/60*dbo.CalculateEfficiencyFactor(@ProductionStartDate,@ProductionLineID)
+    from ProductionLineTimeAllocation
+    where ProductionLineId=@ProductionLineID
+    and Date=cast(@ProductionStartDate as date)
 
 
---     Generate cumulative sum of available hours from @ProductionStartDay to @EndDate
+
+-- Ustaw status zamówienia
+    select @ProductionOrderStatus=ProductionOrderStatus
+    from ProductionOrderStatus
+    where Status='Planowane'
+
+--     Suma dostępnych godzin od dnia początkowego do daty końcowej @Deadline
     ;with TimeSlots as(
-        select
-            @ProductionStartDate as Date,
-            @HoursAvailableAtFirstDay as Available
+        select Date,
+               @HoursAvailableAtFirstDay as Available
         from ProductionLineTimeAllocation
-        where Date=cast(@ProductionStartDate as date)
-        and ProductionLineId=@ProductionLineID
-
-        union ALL
+        where
+            ProductionLineId=@ProductionLineID
+            and Date=cast(@ProductionStartDate as date)
+        union all
         select
             Date,
             (HoursTotal-HoursAllocated-DowntimeHours) as Available
         from ProductionLineTimeAllocation
-        where ProductionLineId=@ProductionLineID
-        and Date<=@Deadline
-        and Date>@ProductionStartDate
+        where
+            ProductionLineId=@ProductionLineID
+            and Date<=@Deadline
+            and Date>cast(@ProductionStartDate as date)
     ), cumulativeTime as (
         select
             Date,
+            Available,
             sum(Available) over (ORDER BY Date ASC) as CumulativeAvailable
         from TimeSlots
     )
---      Select first date when production will be satisfied
-    select TOP 1 @ProductionEndDate=Date from cumulativeTime where CumulativeAvailable>=@EstimatedTime
-    set @ReturnDate=@ProductionEndDate
 
-   -- If we can't produce @Quantity of product before @EndDate return
-     IF @ProductionEndDate is null
-        begin
-            return
-        end
+--      Wbierz date gdy godziny wystarczą, aby wyprodukować zamówienie.
+--      Oblicz liczbę godzin ostatniego wymaganaego dnia pracy
+    select TOP 1
+        @ProductionEndDate=Date,
+        @HoursAtTheLastDay=-(CumulativeAvailable-Available-@EstimatedTime)
+    from cumulativeTime
+    where CumulativeAvailable>=@EstimatedTime
 
--- Calculate how many hours is needed to finish production at the last day
-    select @HoursAtTheLastDay=@EstimatedTime-coalesce(SUM(HoursTotal-DowntimeHours),0)-@HoursAvailableAtFirstDay
+    
+--     Jeśli nie możemy wyprodukować produktu w podanym czasie zwraca błąd
+     IF @ProductionEndDate is null 
+        BEGIN
+            THROW 50000,N'Nie mozna wyprodukowac podanych produktow w podanym czasie',1;
+        END
+--  Jeśli nie zwrócono błędu to możemy wyprodukować produkty w podanym terminie, więc jeśli tylko sprawdzamy możliwość przerwij działanie procedury
+    IF @OnlyCheck = 1
+        BEGIN
+           RETURN
+        END
+
+    DECLARE @EfiiciencyFactor  decimal(10,6)=dbo.CalculateEfficiencyFactor (@ProductionEndDate,@ProductionLineID )
+    
+
+--     Oblicz godzine, ostatniego dnia produkcji
+    select @ProductionEndDate=
+           CASE
+                WHEN cast(@ProductionStartDate as date)=cast(@ProductionEndDate as date)
+                    THEN dateadd(minute,
+                                ROUND(60*@HoursAtTheLastDay/@EfiiciencyFactor,3),
+                                @ProductionStartDate
+                         )
+                ELSE
+                    dateadd(minute,
+                            ROUND(60*@HoursAtTheLastDay/@EfiiciencyFactor,3),
+                            cast(@ProductionEndDate as datetime)+cast(ShiftStart as datetime))
+           END
+
     from ProductionLineTimeAllocation
-    where Date>@ProductionStartDate
-    and Date<@ProductionEndDate
-    and ProductionLineId=@ProductionLineID
-    print @HoursAtTheLastDay
+    where ProductionLineId=@ProductionLineID
+    and Date = @ProductionEndDate
+    
 
-
-
---         If @ProductionStartDate=@ProductionEndDate add @EstimatedHours to @ProductionStartDate to keep integrity of Dates
-    IF cast(@ProductionStartDate as date) = cast(@ProductionEndDate as date)
-        begin
-            set @ProductionEndDate=dateadd(hour,@EstimatedTime,@ProductionStartDate)
-        end
-    ELSE
-        Begin
---             If dates are different add @HoursAtTheLastDay to when shift start at the last day of production
-            DECLARE @ShiftStartLastDayOfProduction time(0)
-            DECLARE @Hours int
-            DECLARE @Minutes int
-            select
-                @ShiftStartLastDayOfProduction=ShiftStart
-            from ProductionLineTimeAllocation
-            where
-                Date=cast(@ProductionEndDate as date)
-                and ProductionLineId=@ProductionLineID
-            set @Hours=FLOOR(@HoursAtTheLastDay)
-            set @Minutes=60*(@HoursAtTheLastDay-@Hours)
-
-            set @ProductionEndDate = dateadd(minute,@Minutes,dateadd(hour,datepart(hour,@ShiftStartLastDayOfProduction)+@Hours,@ProductionEndDate))
-        end
-
-
-
--- Update time in ProductionLineTimeAllocation
+-- Zaalokuj wymagane godziny
     UPDATE ProductionLineTimeAllocation
     set HoursAllocated =
         CASE
---             if production starts and ends at the same date, just add @EstimatedTime to already allocated Hours at that day
-            WHEN Date=cast(@ProductionStartDate as date) then IIF(HoursTotal - HoursAllocated - DowntimeHours > @EstimatedTime,
-                                                    HoursAllocated + @EstimatedTime
-                                                    , HoursTotal)
+            WHEN Date=cast(@ProductionStartDate as date) then iif(@HoursAvailableAtFirstDay>@EstimatedTime,HoursAllocated+@EstimatedTime,HoursAllocated+@HoursAvailableAtFirstDay)
             WHEN Date=cast(@ProductionEndDate as date) then @HoursAtTheLastDay
---             Date between @ProductionStartDate and @ProductionEndDate we use all working hours
+--             Używamy całej mocy lini, gdy nie jest to dzień początkowy ani końcowy
             WHEN Date>@ProductionStartDate and Date<@ProductionEndDate then HoursTotal
---          Do nothing
             ELSE HoursAllocated
         END
     where ProductionLineId=@ProductionLineID
     and date >= cast(@ProductionStartDate as date)
     and date<= cast(@ProductionEndDate as date)
--- Add new ProductionOrder with calculatedvalues
-    insert into ProductionOrder(ProductionLineId, ProductionOrderStatus, ProductId, Quantity, QuantityProduced, QuantityAllocated, AddedDate, PlannedStartDate, PlannedEndDate)
+--     Dodaj nowe zamówienie produkcyjne
+
+    insert into ProductionOrder(ProductionLineId, ProductionOrderStatus, ProductId, Quantity, QuantityProduced, AddedDate, PlannedStartDate, PlannedEndDate)
     values
-        (@ProductionLineID,@ProductionOrderStatus,@ProductID,@Quantity,0,@QuantityAllocated,@CurrentDate,@ProductionStartDate,@ProductionEndDate)
+        (@ProductionLineID,@ProductionOrderStatus,@ProductID,@Quantity,0,cast(getdate() as date),@ProductionStartDate,@ProductionEndDate)
 go
 
-
-
-
 ```
-
-Procedura alokuje czas na nowe zamówienie oraz je tworzy
 
 ### Funkcja: Total order value
 
@@ -1304,12 +1524,13 @@ GO
 
 ### Trigger: Update reserved in products
 
-Utrzymuje aktualna liczby zarezerwowanych sztuk w tabeli Products.
+Utrzymuje aktualną liczbę zarezerwowanych sztuk w tabeli Products.
 Reaguje na każdą zmianę w tabeli ProductReservation. Dodaje ilości z 'inserted' (nowe rezerwacje)
 i odejmuje ilości z 'deleted' (koniec rezerwacji) od kolumny Products.Reserved.
+W przypadku dodania produktów sprawdza czy akutalne zasoby magazynu wystarczą na zamówienie, jeśli nie stworzy nowe zamówienie produkcyjne.
 
 ```sql
-CREATE OR ALTER TRIGGER trg_ProductReservation_UpdateProductsReserved
+CREATE   TRIGGER trg_ProductReservation_UpdateProductsReserved
 ON ProductReservation
 AFTER INSERT, UPDATE, DELETE
 AS
@@ -1319,14 +1540,39 @@ BEGIN
     -- 1. Obsługa nowych rezerwacji lub zwiększenia ilości (INSERT/UPDATE)
     IF EXISTS (SELECT 1 FROM inserted)
     BEGIN
+        DECLARE @Deadline date
+        
+        select @Deadline=o.RequiredDate
+        from inserted i
+        inner join Orders o on o.OrderID=i.OrderID
+        
+        DECLARE @Items OrderItem
+
+        insert into @Items(ProductID,Quantity,Discount)
+        select i.ProductId,i.Quantity,od.Discount
+        from inserted i
+        inner join OrderDetails od on od.OrderID=i.OrderID and od.ProductId=i.ProductID
+        
+        begin try
+            EXEC RedirectItems @Items = @Items, @Deadline = @Deadline
+        end try
+        begin catch
+            throw
+        end catch
+
+
         UPDATE p
         SET p.Reserved = ISNULL(p.Reserved, 0) + i.TotalQty
         FROM Products p
         INNER JOIN (
             SELECT ProductID, SUM(Quantity) AS TotalQty
-            FROM inserted
+            FROM inserted 
             GROUP BY ProductID
         ) i ON p.ProductId = i.ProductID;
+
+
+        
+
     END
 
     -- 2. Obsługa usuniętych rezerwacji lub starej ilości przy zmianie (DELETE/UPDATE)
@@ -1336,13 +1582,15 @@ BEGIN
         SET p.Reserved = ISNULL(p.Reserved, 0) - d.TotalQty
         FROM Products p
         INNER JOIN (
-            SELECT ProductID, SUM(Quantity) AS TotalQty
-            FROM deleted
+            SELECT ProductID, SUM(Quantity) AS TotalQty 
+            FROM deleted 
             GROUP BY ProductID
         ) d ON p.ProductId = d.ProductID;
     END
+
+
 END
-GO
+go
 ```
 
 ### Trigger: Fulfill order
