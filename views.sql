@@ -19,7 +19,8 @@ GROUP BY
     o.OrderID, o.OrderDate, c.CustomerName, ct.TypeName,
     os.OrderStatusName, o.ShipCity, o.ShipCountry;
 GO
-
+-------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------
   
 CREATE VIEW v_TopSellingProducts AS
 SELECT
@@ -35,9 +36,10 @@ JOIN Orders o ON od.OrderID = o.OrderID
 JOIN OrderStatus os ON o.Status = os.OrderStatusID
 WHERE os.OrderStatusName <> 'Anulowane'
 GROUP BY
-    p.ProductName, pc.CategoryName, p.CurrentSellPrice;
+    p.ProductId, p.ProductName, pc.CategoryName, p.CurrentSellPrice;
 GO
-
+-------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------
 CREATE VIEW v_ProductCostAnalysis AS
 SELECT
     p.ProductName,
@@ -52,9 +54,10 @@ JOIN ProductCategories pc ON p.ProductCategoryId = pc.ProductCategoryID
 JOIN ProductsDetails pd ON p.ProductId = pd.ProductId
 JOIN Parts pt ON pd.PartId = pt.PartId
 GROUP BY
-    p.ProductName, pc.CategoryName, p.CurrentSellPrice, p.CurrentProductionCost;
+    p.ProductId, p.ProductName, pc.CategoryName, p.CurrentSellPrice, p.CurrentProductionCost;
 GO
-
+-------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------
 CREATE VIEW v_ProductionQueue AS
 SELECT
     po.ProductionOrderID,
@@ -78,7 +81,8 @@ JOIN Products p ON po.ProductId = p.ProductId
 JOIN ProductionOrderStatus pos ON po.ProductionOrderStatus = pos.ProductionOrderStatus
 JOIN ProductionLine pl ON po.ProductionLineId = pl.ProductionLineId;
 GO
-
+-------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------
 CREATE VIEW v_CustomerStats AS
 SELECT
     c.CustomerName,
@@ -93,9 +97,10 @@ JOIN OrderDetails od ON o.OrderID = od.OrderID
 JOIN CustomerType ct ON c.CustomerType = ct.TypeID
 JOIN OrderStatus os ON o.Status = os.OrderStatusID
 WHERE os.OrderStatusName <> 'Anulowane'
-GROUP BY c.CustomerName, ct.TypeName;
+GROUP BY c.CustomerID, c.CustomerName, ct.TypeName;
 GO
-
+-------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------
 CREATE VIEW v_MonthlySales AS
 SELECT
     FORMAT(o.OrderDate, 'yyyy-MM') AS SalesMonth,
@@ -107,7 +112,8 @@ JOIN OrderStatus os ON o.Status = os.OrderStatusID
 WHERE os.OrderStatusName <> 'Anulowane'
 GROUP BY FORMAT(o.OrderDate, 'yyyy-MM');
 GO
-
+-------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------
 CREATE VIEW v_MaterialRequirements AS
 SELECT
     pt.PartName,
@@ -122,9 +128,10 @@ JOIN PartsCategories pc ON pt.PartCategoryId = pc.PartCategoryId
 WHERE
     po.ProductionOrderStatus IN (1, 2, 4)
 GROUP BY
-    pt.PartName, pc.CategoryName, pt.PartPrice;
+    pt.PartId, pt.PartName, pc.CategoryName, pt.PartPrice;
 GO
-
+-------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------
 CREATE VIEW v_StockShortages AS
 SELECT
     p.ProductName,
@@ -143,7 +150,8 @@ SELECT
 FROM Products p
 WHERE (p.Available - p.Reserved) < p.MinimalQuantity;
 GO
-
+-------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------
 CREATE VIEW v_UnpaidOrders AS
 SELECT
     v.OrderID,
@@ -162,7 +170,8 @@ GROUP BY
     v.OrderID, v.CustomerName, v.OrderDate, v.TotalOrderValue
 HAVING (v.TotalOrderValue - ISNULL(SUM(pay.Amount), 0)) > 0;
 GO
-
+-------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------
 CREATE VIEW v_ProductionEfficiency AS
 SELECT
     p.ProductName,
@@ -180,5 +189,5 @@ FROM ProductionHistory ph
 JOIN Products p ON ph.ProductId = p.ProductId
 JOIN ProductionOrder po ON ph.ProductionOrderID = po.ProductionOrderID
 JOIN ProductionLine pl ON po.ProductionLineId = pl.ProductionLineId
-GROUP BY p.ProductName, pl.ProductionLineId;
+GROUP BY p.ProductId, p.ProductName, pl.ProductionLineId;
 GO
