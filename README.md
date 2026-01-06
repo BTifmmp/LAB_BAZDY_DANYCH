@@ -56,11 +56,7 @@ Maciej Życki
 
 ## Schemat bazy danych
 
-Diagram v0\
-![schemat photo0](schemat_photo0.png)
-
-Diagram v1\
-![schemat photo1](schemat_photo1.png)
+![schemat photo1](schemat_photo2.png)
 
 ## Schemat dzialania zamówień
 
@@ -591,7 +587,7 @@ JOIN Orders o ON od.OrderID = o.OrderID
 JOIN OrderStatus os ON o.Status = os.OrderStatusID
 WHERE os.OrderStatusName <> 'Anulowane'
 GROUP BY
-    p.ProductName, pc.CategoryName, p.CurrentSellPrice;
+    p.ProductId, p.ProductName, pc.CategoryName, p.CurrentSellPrice;
 ```
 
 ---
@@ -615,7 +611,7 @@ JOIN ProductCategories pc ON p.ProductCategoryId = pc.ProductCategoryID
 JOIN ProductsDetails pd ON p.ProductId = pd.ProductId
 JOIN Parts pt ON pd.PartId = pt.PartId
 GROUP BY
-    p.ProductName, pc.CategoryName, p.CurrentSellPrice, p.CurrentProductionCost;
+     p.ProductId, p.ProductName, pc.CategoryName, p.CurrentSellPrice, p.CurrentProductionCost;
 ```
 
 ---
@@ -670,7 +666,7 @@ JOIN OrderDetails od ON o.OrderID = od.OrderID
 JOIN CustomerType ct ON c.CustomerType = ct.TypeID
 JOIN OrderStatus os ON o.Status = os.OrderStatusID
 WHERE os.OrderStatusName <> 'Anulowane'
-GROUP BY c.CustomerName, ct.TypeName;
+GROUP BY c.CustomerID, c.CustomerName, ct.TypeName;
 ```
 
 ---
@@ -713,7 +709,7 @@ JOIN PartsCategories pc ON pt.PartCategoryId = pc.PartCategoryId
 WHERE
     po.ProductionOrderStatus IN (1, 2, 4)
 GROUP BY
-    pt.PartName, pc.CategoryName, pt.PartPrice;
+    pt.PartId, pt.PartName, pc.CategoryName, pt.PartPrice;
 ```
 
 ---
@@ -792,7 +788,7 @@ FROM ProductionHistory ph
 JOIN Products p ON ph.ProductId = p.ProductId
 JOIN ProductionOrder po ON ph.ProductionOrderID = po.ProductionOrderID
 JOIN ProductionLine pl ON po.ProductionLineId = pl.ProductionLineId
-GROUP BY p.ProductName, pl.ProductionLineId;
+GROUP BY p.ProductId, p.ProductName, pl.ProductionLineId;
 ```
 
 ---
