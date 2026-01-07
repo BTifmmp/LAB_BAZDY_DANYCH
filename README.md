@@ -1666,3 +1666,14 @@ GO
 # 4. Inne
 
 (informacja o sposobie wygenerowania danych, uprawnienia …)
+
+
+aktualizacja zamowienia -> zmniejszenie lub zwiekszenie ilości
+anulowanie zamowienia produkcyjnego
+available-reseerved<minimal quantity -> tworzy nowe zamowienie produkcyjne
+
+przychodzy z różnych okresów -> zmienic na procedure
+zestawienie przychodow - > year i month 
+@@trancount redirectitems
+usunac casade on delete
+
