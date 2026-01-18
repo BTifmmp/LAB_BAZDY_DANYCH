@@ -1,5 +1,5 @@
 -- Created by Redgate Data Modeler (https://datamodeler.redgate-platform.com)
--- Last modification date: 2026-01-04 20:34:20.518
+-- Last modification date: 2026-01-18 21:17:01.104
 
 -- tables
 -- Table: CustomerType
@@ -192,8 +192,7 @@ ALTER TABLE Customers ADD CONSTRAINT CustomerType_Customers
 -- Reference: OrderDetails_Orders (table: OrderDetails)
 ALTER TABLE OrderDetails ADD CONSTRAINT OrderDetails_Orders
     FOREIGN KEY (OrderID)
-    REFERENCES Orders (OrderID)
-    ON DELETE  CASCADE;
+    REFERENCES Orders (OrderID);
 
 -- Reference: OrderDetails_Products (table: OrderDetails)
 ALTER TABLE OrderDetails ADD CONSTRAINT OrderDetails_Products
@@ -228,8 +227,7 @@ ALTER TABLE Parts ADD CONSTRAINT Parts_PartsCategories
 -- Reference: Payments_Orders (table: Payments)
 ALTER TABLE Payments ADD CONSTRAINT Payments_Orders
     FOREIGN KEY (OrderID)
-    REFERENCES Orders (OrderID)
-    ON DELETE  CASCADE;
+    REFERENCES Orders (OrderID);
 
 -- Reference: PlannedProduction_Products (table: ProductionOrder)
 ALTER TABLE ProductionOrder ADD CONSTRAINT PlannedProduction_Products
@@ -255,8 +253,7 @@ ALTER TABLE ProductionLineTimeAllocation ADD CONSTRAINT ProductionLineTimeAlloca
 -- Reference: ProductionLine_ProductCategories (table: ProductionLine)
 ALTER TABLE ProductionLine ADD CONSTRAINT ProductionLine_ProductCategories
     FOREIGN KEY (ProductCategoryId)
-    REFERENCES ProductCategories (ProductCategoryID)
-    ON DELETE  CASCADE;
+    REFERENCES ProductCategories (ProductCategoryID);
 
 -- Reference: ProductionOrder_ProductionLine (table: ProductionOrder)
 ALTER TABLE ProductionOrder ADD CONSTRAINT ProductionOrder_ProductionLine
@@ -276,31 +273,11 @@ ALTER TABLE ProductsDetails ADD CONSTRAINT ProductsDetails_Parts
 -- Reference: ProductsDetails_Products (table: ProductsDetails)
 ALTER TABLE ProductsDetails ADD CONSTRAINT ProductsDetails_Products
     FOREIGN KEY (ProductId)
-    REFERENCES Products (ProductId)
-    ON DELETE  CASCADE;
+    REFERENCES Products (ProductId);
 
 -- Reference: Products_ProductCategories (table: Products)
 ALTER TABLE Products ADD CONSTRAINT Products_ProductCategories
     FOREIGN KEY (ProductCategoryId)
     REFERENCES ProductCategories (ProductCategoryID);
-
--- End of file.
-
-
-
-
--- auto-generated definition
-create type dbo.OrderItem as table
-(
-    ProductID int                     not null
-        primary key,
-    Quantity  int                     not null
-        check ([Quantity] > 0),
-    Discount  decimal(5, 2) default 0 not null
-        check ([Discount] >= 0 AND [Discount] <= 1)
-)
-go
-
-
 
 -- End of file.
