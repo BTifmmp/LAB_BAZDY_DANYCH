@@ -175,12 +175,12 @@ CREATE TABLE Orders (
       REFERENCES Status (StatusID),
 
    CONSTRAINT Orders_Employees FOREIGN KEY (EmployeeID)
-      REFERENCES Employees (EmployeeID)
-         ON DELETE  SET NULL,
+      REFERENCES Employees (EmployeeID),
+       
 
    CONSTRAINT Orders_Customers FOREIGN KEY (CustomerID)
       REFERENCES Customers (CustomerID)
-         ON DELETE  CASCADE
+      
 );
 ```
 
@@ -214,7 +214,7 @@ CREATE TABLE Payments (
 
    CONSTRAINT Payments_Orders FOREIGN KEY (OrderID)
       REFERENCES Orders (OrderID)
-         ON DELETE  CASCADE
+    
 );
 ```
 
@@ -239,8 +239,7 @@ CREATE TABLE OrderDetails (
    CONSTRAINT OrderDetails_pk PRIMARY KEY  (OrderID,ProductId),
 
    CONSTRAINT OrderDetails_Orders FOREIGN KEY (OrderID)
-      REFERENCES Orders (OrderID)
-        ON DELETE  CASCADE,
+      REFERENCES Orders (OrderID),
 
   CONSTRAINT OrderDetails_Products  FOREIGN KEY (ProductId)
       REFERENCES Products (ProductId)
@@ -362,8 +361,7 @@ CREATE TABLE ProductsDetails (
     CONSTRAINT ProductsDetails_pk PRIMARY KEY  (ProductId, PartId)
 
     CONSTRAINT ProductsDetails_Products FOREIGN KEY (ProductId)
-    REFERENCES Products (ProductId)
-    ON DELETE  CASCADE;
+    REFERENCES Products (ProductId),
 
     CONSTRAINT ProductsDetails_Parts FOREIGN KEY (PartId)
     REFERENCES Parts (PartId);
@@ -525,6 +523,7 @@ CREATE TABLE ProductReservation (
    CONSTRAINT ProductReservation_pk PRIMARY KEY  (ProductID,OrderID),
    CONSTRAINT OrdersReservation_Products FOREIGN KEY (ProductID)
       REFERENCES Products (ProductId);
+
    CONSTRAINT OrdersReservation_Orders FOREIGN KEY (OrderID)
       REFERENCES Orders (OrderID);
 );
@@ -1062,7 +1061,12 @@ as
 
         close productCursor
         deallocate productCursor
-        ROLLBACK TRANSACTION ;
+
+
+        IF @@TRANCOUNT>0
+            BEGIN
+                ROLLBACK TRANSACTION
+            END;
 
         THROW
 
@@ -1674,6 +1678,5 @@ available-reseerved<minimal quantity -> tworzy nowe zamowienie produkcyjne
 
 przychodzy z różnych okresów -> zmienic na procedure
 zestawienie przychodow - > year i month 
-@@trancount redirectitems
-usunac casade on delete
+
 
