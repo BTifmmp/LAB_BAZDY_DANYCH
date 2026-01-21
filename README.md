@@ -1672,11 +1672,26 @@ GO
 (informacja o sposobie wygenerowania danych, uprawnienia …)
 
 
-aktualizacja zamowienia -> zmniejszenie lub zwiekszenie ilości
+
+
 anulowanie zamowienia produkcyjnego
+usuwanie jakiejś ilości aktualnie produkowanych produktow w production orders 
+procedura na przeuswanie zamówien produkcyjnych o daną ilośc godzin produkcyjnych  
+
+
+aktualizacja zamowienia -> zmniejszenie lub zwiekszenie ilości lub anulowanie
 available-reseerved<minimal quantity -> tworzy nowe zamowienie produkcyjne
+trigger na production history -> zmienia quantityProduced w productionOrder i status i dodaje endDate
+
 
 przychodzy z różnych okresów -> zmienic na procedure
 zestawienie przychodow - > year i month 
 
 
+
+
+Co jest wymagane przy prezentacji:
+
+1.złozenie zamówienia
+2.niewłaściwie parametry, nieistnieje produkt , wyofany produkt, nie istnieje
+3. nieudana produkcja, nie da rady zrobic zamowienia -> poinformowanie klientow
