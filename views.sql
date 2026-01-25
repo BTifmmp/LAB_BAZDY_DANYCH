@@ -21,25 +21,6 @@ GROUP BY
 GO
 -------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------
-  
-CREATE VIEW v_TopSellingProducts AS
-SELECT
-    p.ProductName,
-    pc.CategoryName,
-    SUM(od.Quantity) AS TotalUnitsSold,
-    SUM(od.Quantity * od.UnitPrice * (1.0 - od.Discount)) AS TotalRevenue,
-    p.CurrentSellPrice
-FROM Products p
-JOIN ProductCategories pc ON p.ProductCategoryId = pc.ProductCategoryID
-JOIN OrderDetails od ON p.ProductId = od.ProductId
-JOIN Orders o ON od.OrderID = o.OrderID
-JOIN OrderStatus os ON o.Status = os.OrderStatusID
-WHERE os.OrderStatusName <> 'Anulowane'
-GROUP BY
-    p.ProductId, p.ProductName, pc.CategoryName, p.CurrentSellPrice;
-GO
--------------------------------------------------------------------------------------------------------------------
--------------------------------------------------------------------------------------------------------------------
 CREATE VIEW v_ProductCostAnalysis AS
 SELECT
     p.ProductName,
@@ -80,37 +61,6 @@ FROM ProductionOrder po
 JOIN Products p ON po.ProductId = p.ProductId
 JOIN ProductionOrderStatus pos ON po.ProductionOrderStatus = pos.ProductionOrderStatus
 JOIN ProductionLine pl ON po.ProductionLineId = pl.ProductionLineId;
-GO
--------------------------------------------------------------------------------------------------------------------
--------------------------------------------------------------------------------------------------------------------
-CREATE VIEW v_CustomerStats AS
-SELECT
-    c.CustomerName,
-    ct.TypeName AS CustomerType,
-    COUNT(o.OrderID) AS OrdersCount,
-    SUM(od.Quantity * od.UnitPrice * (1.0 - od.Discount)) AS TotalSpent,
-    MAX(o.OrderDate) AS LastOrderDate,
-    AVG(od.Quantity * od.UnitPrice * (1.0 - od.Discount)) AS AvgOrderValue
-FROM Customers c
-JOIN Orders o ON c.CustomerID = o.CustomerID
-JOIN OrderDetails od ON o.OrderID = od.OrderID
-JOIN CustomerType ct ON c.CustomerType = ct.TypeID
-JOIN OrderStatus os ON o.Status = os.OrderStatusID
-WHERE os.OrderStatusName <> 'Anulowane'
-GROUP BY c.CustomerID, c.CustomerName, ct.TypeName;
-GO
--------------------------------------------------------------------------------------------------------------------
--------------------------------------------------------------------------------------------------------------------
-CREATE VIEW v_MonthlySales AS
-SELECT
-    FORMAT(o.OrderDate, 'yyyy-MM') AS SalesMonth,
-    COUNT(DISTINCT o.OrderID) AS OrdersCount,
-    SUM(od.Quantity * od.UnitPrice * (1.0 - od.Discount)) AS MonthlyRevenue
-FROM Orders o
-JOIN OrderDetails od ON o.OrderID = od.OrderID
-JOIN OrderStatus os ON o.Status = os.OrderStatusID
-WHERE os.OrderStatusName <> 'Anulowane'
-GROUP BY FORMAT(o.OrderDate, 'yyyy-MM');
 GO
 -------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------
@@ -169,25 +119,4 @@ LEFT JOIN Payments pay ON v.OrderID = pay.OrderID
 GROUP BY
     v.OrderID, v.CustomerName, v.OrderDate, v.TotalOrderValue
 HAVING (v.TotalOrderValue - ISNULL(SUM(pay.Amount), 0)) > 0;
-GO
--------------------------------------------------------------------------------------------------------------------
--------------------------------------------------------------------------------------------------------------------
-CREATE VIEW v_ProductionEfficiency AS
-SELECT
-    p.ProductName,
-    pl.ProductionLineId,
-    SUM(ph.Quantity) AS TotalProducedGood,
-    SUM(ph.RejectedQuantity) AS TotalRejected,
-    CAST(
-        CASE
-            WHEN (SUM(ph.Quantity) + SUM(ph.RejectedQuantity)) = 0 THEN 0
-            ELSE (SUM(ph.RejectedQuantity) * 100.0) / (SUM(ph.Quantity) + SUM(ph.RejectedQuantity))
-        END
-    AS DECIMAL(5,2)) AS DefectRatePercent
-
-FROM ProductionHistory ph
-JOIN Products p ON ph.ProductId = p.ProductId
-JOIN ProductionOrder po ON ph.ProductionOrderID = po.ProductionOrderID
-JOIN ProductionLine pl ON po.ProductionLineId = pl.ProductionLineId
-GROUP BY p.ProductId, p.ProductName, pl.ProductionLineId;
 GO
