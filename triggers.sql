@@ -335,20 +335,16 @@ AFTER UPDATE, INSERT
 AS
 BEGIN
     SET NOCOUNT ON;
-
-    -- 1. Definicja zmiennych
     DECLARE @CurrentProductID INT;
     DECLARE @NeededQuantity INT;
-    DECLARE @FarFutureDeadline DATE = '2046-01-01';
-    DECLARE @Items OrderItem;
+    DECLARE @FarFutureDeadline DATE = dateadd(day,3650,cast(getdate() as date));
 
-    -- 2. Kursor przechodzący po wierszach spełniających warunki braku magazynowego
     DECLARE stock_cur CURSOR STATIC LOCAL FOR
     SELECT 
         i.ProductId, 
         (i.MinimalQuantity - i.Available)
     FROM inserted i
-    WHERE i.Removed = 0 
+    WHERE i.Removed= 0 
       AND i.Available < i.MinimalQuantity
       AND NOT EXISTS (
           SELECT 1 FROM ProductionOrder po 
@@ -360,11 +356,12 @@ BEGIN
 
     WHILE @@FETCH_STATUS = 0
     BEGIN
-        DELETE FROM @Items;
-
-        INSERT INTO @Items (ProductID, Quantity, Discount)
-        VALUES (@CurrentProductID, @NeededQuantity, 0);
-        EXEC RedirectItems @Items = @Items, @Deadline = @FarFutureDeadline;
+        
+        EXEC CreateNewProductionOrder 
+            @ProductID = @CurrentProductID, 
+            @Deadline = @FarFutureDeadline,
+            @Quantity = @NeededQuantity,
+            @OnlyCheck = 0;
 
         FETCH NEXT FROM stock_cur INTO @CurrentProductID, @NeededQuantity;
     END
