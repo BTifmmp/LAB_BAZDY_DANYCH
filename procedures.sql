@@ -631,5 +631,242 @@ BEGIN
     RETURN @TotalAmount;
 END
 GO
+
 -------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------
+
+-- Generuje zestawienie miesięcznych przychodów ze sprzedaży z możliwością filtrowania po wybranym okresie. 
+CREATE PROCEDURE sp_MonthlySales
+    @StartYear INT = NULL,
+    @EndYear INT = NULL,
+    @StartMonth INT = NULL,
+    @EndMonth INT = NULL
+AS
+BEGIN
+    IF @StartYear IS NULL
+        SET @StartYear = 1900;
+
+    IF @EndYear IS NULL
+        SET @EndYear = 9999;
+
+    IF @StartMonth IS NULL
+        SET @StartMonth = 1;
+
+    IF @EndMonth IS NULL
+        SET @EndMonth = 12;
+
+    SELECT
+        YEAR(o.OrderDate) AS SalesYear,
+        MONTH(o.OrderDate) AS SalesMonth,
+        COUNT(DISTINCT o.OrderID) AS OrdersCount,
+        SUM(dbo.CalculateOrderValue_FN(o.OrderID)) AS MonthlyRevenue
+    FROM Orders o
+    JOIN OrderDetails od ON o.OrderID = od.OrderID
+    JOIN OrderStatus os ON o.Status = os.OrderStatusID
+    WHERE os.OrderStatusName IN ('Opłacone', 'Gotowe do wysyłki', 'Zrealizowane')
+        AND (
+            (YEAR(o.OrderDate) > @StartYear OR
+             (YEAR(o.OrderDate) = @StartYear AND MONTH(o.OrderDate) >= @StartMonth))
+            AND
+            (YEAR(o.OrderDate) < @EndYear OR
+             (YEAR(o.OrderDate) = @EndYear AND MONTH(o.OrderDate) <= @EndMonth))
+        )
+    GROUP BY YEAR(o.OrderDate), MONTH(o.OrderDate)
+    ORDER BY SalesYear DESC, SalesMonth DESC;
+END
+go
+
+-------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------
+
+-- Tworzy ranking bestsellerów na podstawie przychodów ze sprzedaży produktów w określonym przedziale czasowym. 
+CREATE PROCEDURE sp_TopSellingProducts
+    @StartYear INT = NULL,
+    @EndYear INT = NULL,
+    @StartMonth INT = NULL,
+    @EndMonth INT = NULL,
+    @TopN INT = NULL
+AS
+BEGIN
+    IF @StartYear IS NULL
+        SET @StartYear = 1900;
+
+    IF @EndYear IS NULL
+        SET @EndYear = 9999;
+
+    IF @StartMonth IS NULL
+        SET @StartMonth = 1;
+
+    IF @EndMonth IS NULL
+        SET @EndMonth = 12;
+
+    IF @TopN IS NULL
+        SET @TopN = 999999;
+
+    SELECT TOP (@TopN)
+        p.ProductName,
+        pc.CategoryName,
+        SUM(od.Quantity) AS TotalUnitsSold,
+        SUM(od.Quantity * od.UnitPrice * (1.0 - od.Discount)) AS TotalRevenue,
+        p.CurrentSellPrice,
+        AVG(od.UnitPrice * (1.0 - od.Discount)) AS AvgSellingPrice
+    FROM Products p
+    JOIN ProductCategories pc ON p.ProductCategoryId = pc.ProductCategoryID
+    JOIN OrderDetails od ON p.ProductId = od.ProductId
+    JOIN Orders o ON od.OrderID = o.OrderID
+    JOIN OrderStatus os ON o.Status = os.OrderStatusID
+    WHERE os.OrderStatusName IN ('Opłacone', 'Gotowe do wysyłki', 'Zrealizowane')
+        AND (
+            (YEAR(o.OrderDate) > @StartYear OR
+             (YEAR(o.OrderDate) = @StartYear AND MONTH(o.OrderDate) >= @StartMonth))
+            AND
+            (YEAR(o.OrderDate) < @EndYear OR
+             (YEAR(o.OrderDate) = @EndYear AND MONTH(o.OrderDate) <= @EndMonth))
+        )
+    GROUP BY
+        p.ProductId, p.ProductName, pc.CategoryName, p.CurrentSellPrice
+    ORDER BY TotalRevenue DESC;
+END
+go
+
+-------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------
+
+-- Procedura umożliwia identyfikację najcenniejszych klientów według łącznej wartości wydatków na zamówienia w określonym przedziale czasowym.
+CREATE PROCEDURE sp_CustomerRanking
+    @StartYear INT = NULL,
+    @EndYear INT = NULL,
+    @StartMonth INT = NULL,
+    @EndMonth INT = NULL,
+    @TopN INT = NULL,
+    @OrderBy VARCHAR(20) = 'TotalSpent'
+AS
+BEGIN
+    IF @StartYear IS NULL
+        SET @StartYear = 1900;
+
+    IF @EndYear IS NULL
+        SET @EndYear = 9999;
+
+    IF @StartMonth IS NULL
+        SET @StartMonth = 1;
+
+    IF @EndMonth IS NULL
+        SET @EndMonth = 12;
+
+    IF @TopN IS NULL
+        SET @TopN = 999999;
+
+    IF @OrderBy NOT IN ('TotalSpent', 'OrdersCount')
+        SET @OrderBy = 'TotalSpent';
+
+    ;WITH CustomerStats AS (
+        SELECT
+            c.CustomerID,
+            c.CustomerName,
+            ct.TypeName AS CustomerType,
+            COUNT(o.OrderID) AS OrdersCount,
+            SUM(dbo.CalculateOrderValue_FN(o.OrderID)) AS TotalSpent,
+            MAX(o.OrderDate) AS LastOrderDate,
+            AVG(dbo.CalculateOrderValue_FN(o.OrderID)) AS AvgOrderValue,
+            MIN(o.OrderDate) AS FirstOrderDate
+        FROM Customers c
+        JOIN Orders o ON c.CustomerID = o.CustomerID
+        JOIN OrderDetails od ON o.OrderID = od.OrderID
+        JOIN CustomerType ct ON c.CustomerType = ct.TypeID
+        JOIN OrderStatus os ON o.Status = os.OrderStatusID
+        WHERE os.OrderStatusName IN ('Opłacone', 'Gotowe do wysyłki', 'Zrealizowane')
+            AND (
+                (YEAR(o.OrderDate) > @StartYear OR
+                 (YEAR(o.OrderDate) = @StartYear AND MONTH(o.OrderDate) >= @StartMonth))
+                AND
+                (YEAR(o.OrderDate) < @EndYear OR
+                 (YEAR(o.OrderDate) = @EndYear AND MONTH(o.OrderDate) <= @EndMonth))
+            )
+        GROUP BY c.CustomerID, c.CustomerName, ct.TypeName
+    )
+    SELECT TOP (@TopN)
+        CustomerName,
+        CustomerType,
+        OrdersCount,
+        TotalSpent,
+        AvgOrderValue,
+        LastOrderDate,
+        FirstOrderDate,
+        DATEDIFF(DAY, FirstOrderDate, LastOrderDate) AS CustomerLifetimeDays
+    FROM CustomerStats
+    ORDER BY
+        CASE WHEN @OrderBy = 'TotalSpent' THEN TotalSpent END DESC,
+        CASE WHEN @OrderBy = 'OrdersCount' THEN OrdersCount END DESC;
+END
+go
+
+-------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------
+
+-- Ocenia skuteczność procesu produkcyjnego analizując wskaźnik wadliwości dla poszczególnych produktów i linii produkcyjnych w określonym przedziale czasowym.
+CREATE PROCEDURE sp_ProductionEfficiency
+    @StartYear INT = NULL,
+    @EndYear INT = NULL,
+    @StartMonth INT = NULL,
+    @EndMonth INT = NULL,
+    @ProductionLineId INT = NULL,
+    @MinDefectRate DECIMAL(5,2) = NULL,
+    @MaxDefectRate DECIMAL(5,2) = NULL
+AS
+BEGIN
+    IF @StartYear IS NULL
+        SET @StartYear = 1900;
+
+    IF @EndYear IS NULL
+        SET @EndYear = 9999;
+
+    IF @StartMonth IS NULL
+        SET @StartMonth = 1;
+
+    IF @EndMonth IS NULL
+        SET @EndMonth = 12;
+
+    SELECT
+        p.ProductName,
+        pl.ProductionLineId,
+        SUM(ph.Quantity) AS TotalProducedGood,
+        SUM(ph.RejectedQuantity) AS TotalRejected,
+        SUM(ph.Quantity) + SUM(ph.RejectedQuantity) AS TotalProduced,
+        CAST(
+            CASE
+                WHEN (SUM(ph.Quantity) + SUM(ph.RejectedQuantity)) = 0 THEN 0
+                ELSE (SUM(ph.RejectedQuantity) * 100.0) / (SUM(ph.Quantity) + SUM(ph.RejectedQuantity))
+            END
+        AS DECIMAL(5,2)) AS DefectRatePercent,
+        COUNT(DISTINCT po.ProductionOrderID) AS ProductionOrdersCount
+    FROM ProductionHistory ph
+    JOIN Products p ON ph.ProductId = p.ProductId
+    JOIN ProductionOrder po ON ph.ProductionOrderID = po.ProductionOrderID
+    JOIN ProductionLine pl ON po.ProductionLineId = pl.ProductionLineId
+    WHERE (
+            (YEAR(ph.ProducedDate) > @StartYear OR
+             (YEAR(ph.ProducedDate) = @StartYear AND MONTH(ph.ProducedDate) >= @StartMonth))
+            AND
+            (YEAR(ph.ProducedDate) < @EndYear OR
+             (YEAR(ph.ProducedDate) = @EndYear AND MONTH(ph.ProducedDate) <= @EndMonth))
+        )
+        AND (@ProductionLineId IS NULL OR pl.ProductionLineId = @ProductionLineId)
+    GROUP BY p.ProductId, p.ProductName, pl.ProductionLineId
+    HAVING
+        (@MinDefectRate IS NULL OR
+         CAST(
+            CASE
+                WHEN (SUM(ph.Quantity) + SUM(ph.RejectedQuantity)) = 0 THEN 0
+                ELSE (SUM(ph.RejectedQuantity) * 100.0) / (SUM(ph.Quantity) + SUM(ph.RejectedQuantity))
+            END AS DECIMAL(5,2)) >= @MinDefectRate)
+        AND
+        (@MaxDefectRate IS NULL OR
+         CAST(
+            CASE
+                WHEN (SUM(ph.Quantity) + SUM(ph.RejectedQuantity)) = 0 THEN 0
+                ELSE (SUM(ph.RejectedQuantity) * 100.0) / (SUM(ph.Quantity) + SUM(ph.RejectedQuantity))
+            END AS DECIMAL(5,2)) <= @MaxDefectRate)
+    ORDER BY DefectRatePercent DESC;
+END
+go
