@@ -336,40 +336,43 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- 1. Sprawdzamy, czy są produkty, które wymagają uzupełnienia
-    -- (Nie są usunięte, stan poniżej minimum i brak aktywnych zleceń)
-    IF EXISTS (
-        SELECT 1 FROM inserted i
-        WHERE i.Removed = 0 
-          AND i.Available < i.MinimalQuantity
-          AND NOT EXISTS (
-              SELECT 1 FROM ProductionOrder po 
-              WHERE po.ProductID = i.ProductId AND po.ProductionOrderStatus IN (1, 2)
-          )
-    )
+    -- 1. Definicja zmiennych
+    DECLARE @CurrentProductID INT;
+    DECLARE @NeededQuantity INT;
+    DECLARE @FarFutureDeadline DATE = '2046-01-01';
+    DECLARE @Items OrderItem; -- Twój typ tabelaryczny
+
+    -- 2. Kursor przechodzący po wierszach spełniających warunki braku magazynowego
+    DECLARE stock_cur CURSOR STATIC LOCAL FOR
+    SELECT 
+        i.ProductId, 
+        (i.MinimalQuantity - i.Available)
+    FROM inserted i
+    WHERE i.Removed = 0 
+      AND i.Available < i.MinimalQuantity
+      AND NOT EXISTS (
+          SELECT 1 FROM ProductionOrder po 
+          WHERE po.ProductID = i.ProductId AND po.ProductionOrderStatus IN (1, 2)
+      );
+
+    OPEN stock_cur;
+    FETCH NEXT FROM stock_cur INTO @CurrentProductID, @NeededQuantity;
+
+    WHILE @@FETCH_STATUS = 0
     BEGIN
-        DECLARE @Items OrderItem;
-        DECLARE @FarFutureDeadline DATE = '2046-01-01';
+        -- 3. Czyścimy i przygotowujemy zmienną tabelaryczną dla BIEŻĄCEGO produktu
+        DELETE FROM @Items;
 
-        -- 2. Pobieramy listę produktów do uzupełnienia do tabeli @Items
         INSERT INTO @Items (ProductID, Quantity, Discount)
-        SELECT 
-            i.ProductId, 
-            (i.MinimalQuantity - i.Available),
-            0 -- Brak zniżki
-        FROM inserted i
-        WHERE i.Removed = 0 
-          AND i.Available < i.MinimalQuantity
-          AND NOT EXISTS (
-              SELECT 1 FROM ProductionOrder po 
-              WHERE po.ProductID = i.ProductId AND po.ProductionOrderStatus IN (1, 2)
-          );
+        VALUES (@CurrentProductID, @NeededQuantity, 0);
 
-        -- 3. Przekazujemy paczkę do RedirectItems
-        IF EXISTS (SELECT 1 FROM @Items)
-        BEGIN
-            EXEC RedirectItems @Items = @Items, @Deadline = @FarFutureDeadline;
-        END
+        -- 4. Wywołanie Twojej głównej procedury
+        EXEC RedirectItems @Items = @Items, @Deadline = @FarFutureDeadline;
+
+        FETCH NEXT FROM stock_cur INTO @CurrentProductID, @NeededQuantity;
     END
+
+    CLOSE stock_cur;
+    DEALLOCATE stock_cur;
 END;
 GO
