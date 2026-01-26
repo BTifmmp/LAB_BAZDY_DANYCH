@@ -305,9 +305,6 @@ BEGIN
         BEGIN
             SET @CanFulfill = 0;
         END
-
-        
-
         -- 2. Aktualizujemy wirtualny magazyn (nawet jeśli nie wysyłamy, starsze zamówienie "rezerwuje" towar dla siebie)
         UPDATE vs
         SET vs.TempAvailable = vs.TempAvailable - od.Quantity
@@ -331,3 +328,48 @@ END
 GO
 -------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------
+-- Tworzy zamowienie produkcji ktore uzupelni minimal quantity, jezli nie istnieje zadne inne zamowineie produkujace dany produkt
+CREATE OR ALTER TRIGGER trg_CheckStockAndProduce
+ON Products
+AFTER UPDATE, INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- 1. Sprawdzamy, czy są produkty, które wymagają uzupełnienia
+    -- (Nie są usunięte, stan poniżej minimum i brak aktywnych zleceń)
+    IF EXISTS (
+        SELECT 1 FROM inserted i
+        WHERE i.Removed = 0 
+          AND i.Available < i.MinimalQuantity
+          AND NOT EXISTS (
+              SELECT 1 FROM ProductionOrder po 
+              WHERE po.ProductID = i.ProductId AND po.ProductionOrderStatus IN (1, 2)
+          )
+    )
+    BEGIN
+        DECLARE @Items OrderItem;
+        DECLARE @FarFutureDeadline DATE = '2046-01-01';
+
+        -- 2. Pobieramy listę produktów do uzupełnienia do tabeli @Items
+        INSERT INTO @Items (ProductID, Quantity, Discount)
+        SELECT 
+            i.ProductId, 
+            (i.MinimalQuantity - i.Available),
+            0 -- Brak zniżki
+        FROM inserted i
+        WHERE i.Removed = 0 
+          AND i.Available < i.MinimalQuantity
+          AND NOT EXISTS (
+              SELECT 1 FROM ProductionOrder po 
+              WHERE po.ProductID = i.ProductId AND po.ProductionOrderStatus IN (1, 2)
+          );
+
+        -- 3. Przekazujemy paczkę do RedirectItems
+        IF EXISTS (SELECT 1 FROM @Items)
+        BEGIN
+            EXEC RedirectItems @Items = @Items, @Deadline = @FarFutureDeadline;
+        END
+    END
+END;
+GO
