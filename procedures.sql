@@ -870,3 +870,73 @@ BEGIN
     ORDER BY DefectRatePercent DESC;
 END
 go
+
+-------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------
+--Procedura pozwala na anulowanie zamowienia
+
+CREATE OR ALTER PROCEDURE CancelFullOrder
+    @OrderID INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- 1. Blokada dla zamówień wysłanych/zrealizowanych
+    IF EXISTS (SELECT 1 FROM Orders WHERE OrderID = @OrderID AND Status IN (3, 4, 5))
+    BEGIN
+        RETURN;
+    END
+
+    -- 2. Aktualizacja statusu
+    UPDATE Orders
+    SET Status = 5 -- 'Anulowane'
+    WHERE OrderID = @OrderID;
+END;
+GO
+
+
+-------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------
+-- Procedura pozwala na zmiane ilosci produktu w zamowieniu
+CREATE OR ALTER PROCEDURE UpdateOrderProductQuantity
+    @OrderID INT,
+    @ProductID INT,
+    @NewQuantity INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- 1. Blokada edycji dla zamówień gotowe do wys(3), zrealizowane (4) lub anulowane (5)
+    IF EXISTS (SELECT 1 FROM Orders WHERE OrderID = @OrderID AND Status IN (3, 4, 5))
+    BEGIN
+        RETURN;
+    END
+
+    -- 3. Scenariusz: Usuwanie produktu (ilość <= 0)
+    IF @NewQuantity <= 0
+    BEGIN
+        -- Usuwamy z detali zamówienia
+        DELETE FROM OrderDetails 
+        WHERE OrderID = @OrderID AND ProductID = @ProductID;
+
+        -- Usuwamy odpowiadającą rezerwację 
+        DELETE FROM ProductReservation 
+        WHERE OrderID = @OrderID AND ProductID = @ProductID;
+    END
+    -- 4. Scenariusz: Aktualizacja ilości
+    ELSE
+    BEGIN
+        -- Aktualizujemy ilość w zamówieniu
+        UPDATE OrderDetails 
+        SET Quantity = @NewQuantity 
+        WHERE OrderID = @OrderID AND ProductID = @ProductID;
+
+        -- Aktualizujemy ilość w rezerwacji 
+        UPDATE ProductReservation
+        SET Quantity = @NewQuantity
+        WHERE OrderID = @OrderID AND ProductID = @ProductID;
+    END
+
+    -- Po zmianiae reserved uruchomia sie trigger na ProducTresevation ktory robi update producktu
+END;
+GO
