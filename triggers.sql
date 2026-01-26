@@ -226,8 +226,9 @@ BEGIN
         FETCH NEXT FROM cur INTO @RedProductId, @DiffQuantity;
         WHILE @@FETCH_STATUS = 0
         BEGIN
-            -- W TYM MIEJSCU POWINO ZOSTAC WYWOWALE ZMNIEJSNIE ZAMOWIENIA PRODUKCJI
-            -- EXEC ReduceProductProduction @ProductID = @RedProductId, @Quantity = @DiffQuantity;
+
+           -- Zmniejszenie ilości produktu w zamówieniach produkcyjnych
+            EXEC usp_RemoveProductQuantityFromOrders @ProductId = @RedProductId, @QuantityToRemove = @DiffQuantity
             FETCH NEXT FROM cur INTO @RedProductId, @DiffQuantity;
         END
         CLOSE cur;
@@ -494,7 +495,7 @@ BEGIN
         INSERT INTO @Items (ProductID, Quantity, Discount)
         SELECT 
             i.ProductId, 
-            (i.MinimalQuantity - i.Available),
+            i.MinimalQuantity,
             0 -- Brak zniżki
         FROM inserted i
         WHERE i.Removed = 0 
