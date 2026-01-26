@@ -1976,7 +1976,7 @@ BEGIN
         SELECT
             i.ProductId,
             (i.MinimalQuantity - i.Available),
-            0 -- Brak zniżki dla zamówień wewnętrznych (uzupełniających)
+            0 -- Brak zniżki
         FROM inserted i
         WHERE i.Removed = 0
           AND i.Available < i.MinimalQuantity
@@ -1985,7 +1985,7 @@ BEGIN
               WHERE po.ProductID = i.ProductId AND po.ProductionOrderStatus IN (1, 2)
           );
 
-        -- 3. Przekazujemy paczkę do Twojej głównej logiki RedirectItems
+        -- 3. Przekazujemy paczkę do RedirectItems
         IF EXISTS (SELECT 1 FROM @Items)
         BEGIN
             EXEC RedirectItems @Items = @Items, @Deadline = @FarFutureDeadline;
