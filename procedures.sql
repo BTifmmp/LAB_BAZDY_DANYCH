@@ -802,3 +802,265 @@ BEGIN
     ORDER BY DefectRatePercent DESC;
 END
 go
+------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+CREATE   PROCEDURE dbo.usp_ReduceAllocatedHoursFromEnd
+    @ProductionLineId INT,
+    @HoursToReduce DECIMAL(18,2)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @RemainingHours DECIMAL(18,2) = @HoursToReduce;
+    DECLARE @TargetDate DATE;
+    DECLARE @CurrentAllocated DECIMAL(18,2);
+
+    -- Pętla działa dopóki mamy godziny do odjęcia
+    WHILE @RemainingHours > 0.01 -- Tolerancja dla zaokrągleń
+    BEGIN
+        -- Znajdź ostatni dzień, który ma jeszcze jakieś godziny
+        SELECT TOP 1
+            @TargetDate = [Date],
+            @CurrentAllocated = HoursAllocated
+        FROM ProductionLineTimeAllocation
+        WHERE ProductionLineId = @ProductionLineId
+          AND HoursAllocated > 0
+        ORDER BY [Date] DESC;
+
+        -- Jeśli nie ma już zaalokowanych godzin w żadnym dniu, kończymy
+        IF @TargetDate IS NULL BREAK;
+
+        IF @CurrentAllocated >= @RemainingHours
+        BEGIN
+            -- Dzisiejsza alokacja wystarczy, by pokryć redukcję
+            UPDATE ProductionLineTimeAllocation
+            SET HoursAllocated = @CurrentAllocated - @RemainingHours
+            WHERE ProductionLineId = @ProductionLineId AND [Date] = @TargetDate;
+
+            SET @RemainingHours = 0;
+        END
+        ELSE
+        BEGIN
+            -- Czyścimy ten dzień do zera i przechodzimy do poprzedniego
+            UPDATE ProductionLineTimeAllocation
+            SET HoursAllocated = 0
+            WHERE ProductionLineId = @ProductionLineId AND [Date] = @TargetDate;
+
+            SET @RemainingHours = @RemainingHours - @CurrentAllocated;
+        END
+    END
+END
+go
+------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+CREATE   PROCEDURE dbo.usp_RescheduleProductionLine
+    @ProductionLineId INT,
+    @AnchorDate DATETIME,  -- Data, od której zaczynamy układać kolejne zlecenia
+    @ExcludedOrderId INT = NULL -- ID zlecenia, które wywołało zmianę (żeby go nie przesuwać)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @nextID INT;
+    DECLARE @nextMinutes INT;
+    DECLARE @currentAnchor DATETIME = @AnchorDate;
+
+    -- Kursor pobierający wszystkie aktywne zlecenia po dacie zakotwiczenia
+    DECLARE curNext CURSOR LOCAL FOR
+    SELECT
+        po.ProductionOrderId,
+        CAST(po.Quantity * p.EstimatedProductionTime * 60 AS INT)
+    FROM ProductionOrder po
+    INNER JOIN Products p ON po.ProductId = p.ProductId
+    WHERE po.ProductionLineId = @ProductionLineId
+      AND po.PlannedStartDate >= @AnchorDate -- Bierzemy wszystko od punktu startu
+      AND (@ExcludedOrderId IS NULL OR po.ProductionOrderId <> @ExcludedOrderId)
+      AND po.ProductionOrderStatus NOT IN (3, 4) -- Pomijamy zakończone i anulowane
+    ORDER BY po.PlannedStartDate ASC;
+
+    OPEN curNext;
+    FETCH NEXT FROM curNext INTO @nextID, @nextMinutes;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        DECLARE @calcEnd DATETIME;
+
+        -- Wyliczamy nowy koniec przy użyciu funkcji kalendarzowej
+        SET @calcEnd = dbo.AddProductionTime(@currentAnchor, @nextMinutes, @ProductionLineId);
+
+        UPDATE ProductionOrder
+        SET
+            PlannedStartDate = @currentAnchor,
+            PlannedEndDate = @calcEnd
+        WHERE ProductionOrderId = @nextID;
+
+        -- Następne zamówienie zaczyna się tam, gdzie skończyło się obecne
+        SET @currentAnchor = @calcEnd;
+
+        FETCH NEXT FROM curNext INTO @nextID, @nextMinutes;
+    END
+
+    CLOSE curNext;
+    DEALLOCATE curNext;
+END
+go
+------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+CREATE   PROCEDURE dbo.usp_RemoveProductQuantityFromOrders
+    @ProductId INT,
+    @QuantityToRemove INT,
+    @ProductionLineId INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @AvailableToRelease INT;
+    DECLARE @RemainingToDelete INT = @QuantityToRemove;
+    DECLARE @CurrentOrderID INT;
+    DECLARE @OrderQty INT;
+    Declare @ProductionSum int
+    Declare @TotalSum int
+    -- 1. Walidacja rezerwacji
+    select TOP 1 @ProductionSum=sum(Quantity-QuantityProduced)
+    from ProductionOrder
+    inner join Products
+    on ProductionOrder.ProductId = Products.ProductId
+    where ProductionLineId=@ProductionLineId
+    and ProductionOrder.ProductId=@ProductId
+    
+    select @TotalSum=Available+@ProductionSum-Reserved
+    from Products
+    where ProductId=@ProductId
+    
+    select @QuantityToRemove,@TotalSum,@ProductionSum
+    IF @QuantityToRemove > @TotalSum or @QuantityToRemove>@ProductionSum
+    BEGIN
+        RAISERROR('BŁĄD: Brak wystarczającej ilości produktów.', 16, 1);
+
+    END
+
+    -- 2. Kursor pobierający zamówienia
+    DECLARE cur CURSOR LOCAL FOR
+    SELECT ProductionOrderId, Quantity
+    FROM ProductionOrder
+    WHERE ProductId = @ProductId
+      AND (@ProductionLineId IS NULL OR ProductionLineId = @ProductionLineId)
+      AND ProductionOrderStatus IN (1, 2)
+    ORDER BY PlannedStartDate DESC;
+
+    OPEN cur;
+    FETCH NEXT FROM cur INTO @CurrentOrderID, @OrderQty;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        WHILE @@FETCH_STATUS = 0 AND @RemainingToDelete > 0
+        BEGIN
+            IF @OrderQty <= @RemainingToDelete
+            BEGIN
+                -- USUWANIE CAŁKOWITE
+                DELETE FROM ProductionOrder WHERE ProductionOrderId = @CurrentOrderID;
+                SET @RemainingToDelete = @RemainingToDelete - @OrderQty;
+
+                
+            END
+            ELSE
+            BEGIN
+                -- USUWANIE CZĘŚCIOWE (UPDATE)
+                -- Zmieniamy ilość w zamówieniu o brakującą różnicę
+                UPDATE ProductionOrder
+                SET Quantity = Quantity - @RemainingToDelete
+                WHERE ProductionOrderId = @CurrentOrderID;
+
+
+                SET @RemainingToDelete = 0;
+            END
+
+            FETCH NEXT FROM cur INTO @CurrentOrderID, @OrderQty;
+        END
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+
+    CLOSE cur;
+    DEALLOCATE cur;
+END
+go
+------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+CREATE FUNCTION dbo.AddProductionTime (
+    @startDate DATETIME, 
+    @minutesToAdd INT, 
+    @productionLineId INT
+)
+RETURNS DATETIME
+AS
+BEGIN
+    DECLARE @currentAnchor DATETIME = @startDate;
+    DECLARE @remainingMinutes DECIMAL(18,2) = @minutesToAdd;
+    DECLARE @resultDateTime DATETIME;
+
+    WHILE @remainingMinutes > 0
+    BEGIN
+        DECLARE @actualShiftEnd DATETIME;
+        DECLARE @factor DECIMAL(10,4);
+
+        -- 1. Pobieramy dane zmiany i wydajność
+        SELECT TOP 1 
+            @actualShiftEnd = CAST(CAST([date] AS DATETIME) + CAST(ShiftEnd AS DATETIME) AS DATETIME),
+            @factor = dbo.CalculateEfficiencyFactor([date], @productionLineId)
+        FROM ProductionLineTimeAllocation
+        WHERE ProductionLineId = @productionLineId 
+          AND [date] = CAST(@currentAnchor AS DATE);
+
+        -- Zabezpieczenie przed dzieleniem przez zero
+        IF @factor IS NULL OR @factor = 0 SET @factor = 1;
+
+        -- 2. Ile minut ZEGAROWYCH zostało do końca zmiany
+        DECLARE @clockMinutesToShiftEnd INT = DATEDIFF(MINUTE, @currentAnchor, @actualShiftEnd);
+
+        -- 3. Ile minut PRODUKCYJNYCH (efektywnych) zmieścimy do końca zmiany?
+        DECLARE @effectiveMinutesAvailableToday DECIMAL(18,2) = @clockMinutesToShiftEnd * @factor;
+
+        IF @effectiveMinutesAvailableToday >= @remainingMinutes
+        BEGIN
+            -- DZIEŃ OSTATNI:
+            -- Musimy przeliczyć pozostałe minuty produkcyjne na ZEGAROWE
+            -- Przykład: zostało 480 min prod / 16.6 factor = ~29 min zegarowych
+            DECLARE @clockMinutesToUse INT = CEILING(@remainingMinutes / @factor);
+            
+            SET @resultDateTime = DATEADD(MINUTE, @clockMinutesToUse, @currentAnchor);
+            SET @remainingMinutes = 0;
+        END
+        ELSE
+        BEGIN
+            -- SKOK DO JUTRA:
+            -- Zużywamy cały dostępny czas produkcyjny dzisiaj
+            SET @remainingMinutes = @remainingMinutes - @effectiveMinutesAvailableToday;
+
+            -- Szukamy początku kolejnej zmiany
+            SELECT TOP 1 
+                @currentAnchor = CAST(CAST([date] AS DATETIME) + CAST(ShiftStart AS DATETIME) AS DATETIME)
+            FROM ProductionLineTimeAllocation
+            WHERE ProductionLineId = @productionLineId 
+              AND [date] > CAST(@currentAnchor AS DATE)
+            ORDER BY [date] ASC;
+
+            IF @@ROWCOUNT = 0 
+            BEGIN 
+                SET @resultDateTime = @actualShiftEnd; 
+                SET @remainingMinutes = 0; 
+            END
+        END
+    END
+    RETURN @resultDateTime;
+END
+go
+
+
+
+
+

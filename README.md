@@ -1540,6 +1540,292 @@ END
 GO
 ```
 
+
+### Funkcja : AddProductionTime
+
+Funkcja doda ilość podanych minut do podanej daty. Robiąc to dba o warunki bazy:
+- Czas musi znajdywać się pomiędzy `ShiftStart` a `ShiftEnd`
+- Linia musi pracować w ten dzień
+
+```sql
+CREATE FUNCTION dbo.AddProductionTime (
+    @startDate DATETIME, 
+    @minutesToAdd INT, 
+    @productionLineId INT
+)
+RETURNS DATETIME
+AS
+BEGIN
+    DECLARE @currentAnchor DATETIME = @startDate;
+    DECLARE @remainingMinutes DECIMAL(18,2) = @minutesToAdd;
+    DECLARE @resultDateTime DATETIME;
+
+    WHILE @remainingMinutes > 0
+    BEGIN
+        DECLARE @actualShiftEnd DATETIME;
+        DECLARE @factor DECIMAL(10,4);
+
+        -- 1. Pobieramy dane zmiany i wydajność
+        SELECT TOP 1 
+            @actualShiftEnd = CAST(CAST(date AS DATETIME) + CAST(ShiftEnd AS DATETIME) AS DATETIME),
+            @factor = dbo.CalculateEfficiencyFactor(date, @productionLineId)
+        FROM ProductionLineTimeAllocation
+        WHERE ProductionLineId = @productionLineId 
+          AND date = CAST(@currentAnchor AS DATE);
+
+        -- Zabezpieczenie przed dzieleniem przez zero
+        IF @factor IS NULL OR @factor = 0 SET @factor = 1;
+
+        -- 2. Ile minut zegarowych zostało do końca zmiany
+        DECLARE @clockMinutesToShiftEnd INT = DATEDIFF(MINUTE, @currentAnchor, @actualShiftEnd);
+
+        -- 3. Ile minut produkcyjnych (efektywnych) zmieścimy do końca zmiany
+        DECLARE @effectiveMinutesAvailableToday DECIMAL(18,2) = @clockMinutesToShiftEnd * @factor;
+
+        IF @effectiveMinutesAvailableToday >= @remainingMinutes
+        BEGIN
+            -- DZIEŃ OSTATNI:
+            -- Musimy przeliczyć pozostałe minuty produkcyjne na zegarowe
+            -- Przykład: zostało 480 min prod / 16.6 factor = ~29 min zegarowych
+            DECLARE @clockMinutesToUse INT = CEILING(@remainingMinutes / @factor);
+            
+            SET @resultDateTime = DATEADD(MINUTE, @clockMinutesToUse, @currentAnchor);
+            SET @remainingMinutes = 0;
+        END
+        ELSE
+        BEGIN
+            -- SKOK DO JUTRA:
+            -- Zużywamy cały dostępny czas produkcyjny dzisiaj
+            SET @remainingMinutes = @remainingMinutes - @effectiveMinutesAvailableToday;
+
+            -- Szukamy początku kolejnej zmiany
+            SELECT TOP 1 
+                @currentAnchor = CAST(CAST(date AS DATETIME) + CAST(ShiftStart AS DATETIME) AS DATETIME)
+            FROM ProductionLineTimeAllocation
+            WHERE ProductionLineId = @productionLineId 
+              AND date > CAST(@currentAnchor AS DATE)
+              AND HoursTotal>0
+            ORDER BY date ASC;
+
+            IF @@ROWCOUNT = 0 
+            BEGIN 
+                SET @resultDateTime = @actualShiftEnd; 
+                SET @remainingMinutes = 0; 
+            END
+        END
+    END
+    RETURN @resultDateTime;
+END
+go
+
+
+```
+
+### Procedura : ReduceAllocatedHoursFromEnd
+
+Procedura usuwa czas, który był zaalokowany. Robi to od końca
+
+```sql
+CREATE   PROCEDURE dbo.ReduceAllocatedHoursFromEnd
+    @ProductionLineId INT,
+    @HoursToReduce DECIMAL(18,2)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @RemainingHours DECIMAL(18,2) = @HoursToReduce;
+    DECLARE @TargetDate DATE;
+    DECLARE @CurrentAllocated DECIMAL(18,2);
+
+    -- Pętla działa dopóki mamy godziny do odjęcia
+    WHILE @RemainingHours > 0.01 -- Tolerancja dla zaokrągleń
+    BEGIN
+        -- Znajdź ostatni dzień, który ma jeszcze jakieś godziny
+        SELECT TOP 1
+            @TargetDate = Date,
+            @CurrentAllocated = HoursAllocated
+        FROM ProductionLineTimeAllocation
+        WHERE ProductionLineId = @ProductionLineId
+          AND HoursAllocated > 0
+        ORDER BY Date DESC;
+
+        -- Jeśli nie ma już zaalokowanych godzin w żadnym dniu, kończymy
+        IF @TargetDate IS NULL BREAK;
+
+        IF @CurrentAllocated >= @RemainingHours
+        BEGIN
+            -- Dzisiejsza alokacja wystarczy, by pokryć redukcję
+            UPDATE ProductionLineTimeAllocation
+            SET HoursAllocated = @CurrentAllocated - @RemainingHours
+            WHERE ProductionLineId = @ProductionLineId AND Date = @TargetDate;
+
+            SET @RemainingHours = 0;
+        END
+        ELSE
+        BEGIN
+            -- Czyścimy ten dzień do zera i przechodzimy do poprzedniego
+            UPDATE ProductionLineTimeAllocation
+            SET HoursAllocated = 0
+            WHERE ProductionLineId = @ProductionLineId AND Date = @TargetDate;
+
+            SET @RemainingHours = @RemainingHours - @CurrentAllocated;
+        END
+    END
+END
+go
+
+```
+
+### Procedura : RemoveProductQuantityFromOrders
+
+Procedura usunie podaną ilość produktów z zamówień produkcyjnych. Robi to od ostatniego zamówienia.
+
+```sql
+CREATE   PROCEDURE dbo.RemoveProductQuantityFromOrders
+    @ProductId INT,
+    @QuantityToRemove INT,
+    @ProductionLineId INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @AvailableToRelease INT;
+    DECLARE @RemainingToDelete INT = @QuantityToRemove;
+    DECLARE @CurrentOrderID INT;
+    DECLARE @OrderQty INT;
+    Declare @ProductionSum int
+    Declare @TotalSum int
+    -- 1. Walidacja rezerwacji
+    select TOP 1 @ProductionSum=sum(Quantity-QuantityProduced)
+    from ProductionOrder
+    inner join Products
+    on ProductionOrder.ProductId = Products.ProductId
+    where ProductionLineId=@ProductionLineId
+    and ProductionOrder.ProductId=@ProductId
+    
+    select @TotalSum=Available+@ProductionSum-Reserved
+    from Products
+    where ProductId=@ProductId
+    
+    select @QuantityToRemove,@TotalSum,@ProductionSum
+    IF @QuantityToRemove > @TotalSum or @QuantityToRemove>@ProductionSum
+    BEGIN
+        RAISERROR('BŁĄD: Brak wystarczającej ilości produktów.', 16, 1);
+
+    END
+
+    -- 2. Kursor pobierający zamówienia
+    DECLARE cur CURSOR LOCAL FOR
+    SELECT ProductionOrderId, Quantity
+    FROM ProductionOrder
+    WHERE ProductId = @ProductId
+      AND (@ProductionLineId IS NULL OR ProductionLineId = @ProductionLineId)
+      AND ProductionOrderStatus IN (1, 2)
+    ORDER BY PlannedStartDate DESC;
+
+    OPEN cur;
+    FETCH NEXT FROM cur INTO @CurrentOrderID, @OrderQty;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        WHILE @@FETCH_STATUS = 0 AND @RemainingToDelete > 0
+        BEGIN
+            IF @OrderQty <= @RemainingToDelete
+            BEGIN
+                -- USUWANIE CAŁKOWITE
+                DELETE FROM ProductionOrder WHERE ProductionOrderId = @CurrentOrderID;
+                SET @RemainingToDelete = @RemainingToDelete - @OrderQty;
+
+                
+            END
+            ELSE
+            BEGIN
+                -- USUWANIE CZĘŚCIOWE (UPDATE)
+                -- Zmieniamy ilość w zamówieniu o brakującą różnicę
+                UPDATE ProductionOrder
+                SET Quantity = Quantity - @RemainingToDelete
+                WHERE ProductionOrderId = @CurrentOrderID;
+
+
+                SET @RemainingToDelete = 0;
+            END
+
+            FETCH NEXT FROM cur INTO @CurrentOrderID, @OrderQty;
+        END
+
+        COMMIT TRANSACTION;
+
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+
+    CLOSE cur;
+    DEALLOCATE cur;
+END
+go
+
+```
+
+
+### Procedura : RescheduleProductionLine
+Procedura, która przesuwa zamówienia. Korzysta z funkcji `AddProductionTime`, aby obliczyć czas zakończenia zamówienia.
+```sql
+CREATE   PROCEDURE dbo.RescheduleProductionLine
+    @ProductionLineId INT,
+    @AnchorDate DATETIME,  -- Data, od której zaczynamy układać kolejne zlecenia
+    @ExcludedOrderId INT = NULL -- ID zlecenia, które wywołało zmianę (żeby go nie przesuwać)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @nextID INT;
+    DECLARE @nextMinutes INT;
+    DECLARE @currentAnchor DATETIME = @AnchorDate;
+
+    -- Kursor pobierający wszystkie aktywne zlecenia po dacie zakotwiczenia
+    DECLARE curNext CURSOR LOCAL FOR
+    SELECT
+        po.ProductionOrderId,
+        CAST(po.Quantity * p.EstimatedProductionTime * 60 AS INT)
+    FROM ProductionOrder po
+    INNER JOIN Products p ON po.ProductId = p.ProductId
+    WHERE po.ProductionLineId = @ProductionLineId
+      AND po.PlannedStartDate >= @AnchorDate -- Bierzemy wszystko od punktu startu
+      AND (@ExcludedOrderId IS NULL OR po.ProductionOrderId <> @ExcludedOrderId)
+      AND po.ProductionOrderStatus NOT IN (3, 4) -- Pomijamy zakończone i anulowane
+    ORDER BY po.PlannedStartDate ASC;
+
+    OPEN curNext;
+    FETCH NEXT FROM curNext INTO @nextID, @nextMinutes;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        DECLARE @calcEnd DATETIME;
+
+        -- Wyliczamy nowy koniec przy użyciu funkcji kalendarzowej
+        SET @calcEnd = dbo.AddProductionTime(@currentAnchor, @nextMinutes, @ProductionLineId);
+
+        UPDATE ProductionOrder
+        SET
+            PlannedStartDate = @currentAnchor,
+            PlannedEndDate = @calcEnd
+        WHERE ProductionOrderId = @nextID;
+
+        -- Następne zamówienie zaczyna się tam, gdzie skończyło się obecne
+        SET @currentAnchor = @calcEnd;
+
+        FETCH NEXT FROM curNext INTO @nextID, @nextMinutes;
+    END
+
+    CLOSE curNext;
+    DEALLOCATE curNext;
+END
+go
+
+
+```
 ## Triggery
 
 ### Trigger: Update order status after payment
@@ -1822,6 +2108,164 @@ END
 GO
 ```
 
+### Trigger : tr_ProductionHistory_UpdateProductionOrderDates
+Trigger wykona sie po dokonania wpisu w ProductionHistory, który zawiera Rejected Quantity. 
+Wszystkie zamówienia zostaną przesunięte o opóźnienie, które powstało.
+```sql
+CREATE TRIGGER tr_ProductionHistory_UpdateProductionOrderDates
+ON ProductionHistory
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @sourceOrderID INT;
+    DECLARE @timeToPushMinutes INT;
+    DECLARE @productionLineID INT;
+    DECLARE @newEndDateOfFirstOrder DATETIME;
+
+    SELECT TOP 1
+        @sourceOrderID = i.ProductionOrderID,
+        @productionLineID = po.ProductionLineId,
+        -- Obliczamy ile minut dodatkowo musi pracować linia
+        @timeToPushMinutes = CAST(i.RejectedQuantity * p.EstimatedProductionTime * 60 AS INT)
+    FROM inserted AS i
+    INNER JOIN ProductionOrder AS po ON i.ProductionOrderID = po.ProductionOrderID
+    INNER JOIN Products AS p ON po.ProductId = p.ProductId
+    WHERE i.RejectedQuantity > 0
+    ORDER BY i.ProductionHistoryID; 
+
+    IF @sourceOrderID IS NULL RETURN;
+
+
+
+    DECLARE @currentEnd DATETIME = (SELECT PlannedEndDate FROM ProductionOrder WHERE ProductionOrderID = @sourceOrderID);
+
+    SET @newEndDateOfFirstOrder = dbo.AddProductionTime(@currentEnd, @timeToPushMinutes, @productionLineID);
+
+    UPDATE ProductionOrder
+    SET PlannedEndDate = @newEndDateOfFirstOrder
+    WHERE ProductionOrderID = @sourceOrderID;
+
+    -- 3 Przesuwamy wszystkie kolejne zamówienia
+    EXEC dbo.usp_RescheduleProductionLine @ProductionLineId = @productionLineID, @AnchorDate = @newEndDateOfFirstOrder, @ExcludedOrderId=@sourceOrderID 
+END
+go
+
+
+```
+### Trigger :moveProductionOrders
+
+Trigger wykona się po usunięciu `ProductionOrder`. Zamiast usunięcia zmienia status na 4 (anulowane).
+Powstała luka zostanie uzupełniona przez akutalnie zlecone zamówienia.
+Odejmie się też czas który był zaalokowany na to zamówienie
+```sql
+CREATE trigger tr_moveProductionOrders
+on ProductionOrder
+instead of delete
+as
+    begin
+
+        declare @anchor datetime
+        declare @ProductioOrderID int
+        
+
+        declare @time decimal(6,2)
+        declare @productionLineID int
+
+        SELECT TOP 1 
+               @anchor=PlannedStartDate,
+               @productionLineID=ProductionLineId,
+               @time=Quantity*EstimatedProductionTime,
+               @ProductioOrderID=ProductionOrderID
+        FROM deleted
+        INNER JOIN Products
+        ON deleted.ProductId=Products.ProductId
+        ORDER BY PlannedStartDate;
+
+
+        EXEC dbo.usp_RescheduleProductionLine @ProductionLineId = @productionLineID, @AnchorDate = @anchor, @ExcludedOrderId = @ProductioOrderID
+
+
+        EXEC dbo.usp_ReduceAllocatedHoursFromEnd @ProductionLineId = @productionLineID, @HoursToReduce = @time
+
+        UPDATE ProductionOrder
+        SET ProductionOrderStatus=4
+        WHERE ProductionOrderID in (SELECT ProductionOrderID FROM deleted )
+END
+go
+
+
+```
+
+### Trigger : tr_MoveOrdersOnQuantityChange
+
+Trigger wykona się po zmianie Quantity w `ProductionOrder`. Obliczona zostanie nowa data zakończenia zamówienia.
+Wywoła procedurę, która przesunie wszystie zamówienia o powstałą lukę.
+```sql
+CREATE   TRIGGER tr_MoveOrdersOnQuantityChange
+ON ProductionOrder
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    -- Reagujemy tylko jeśli zmieniła się ilość
+    IF NOT UPDATE(Quantity) RETURN;
+
+    DECLARE @changedOrderID INT;
+    DECLARE @productionLineID INT;
+    DECLARE @newQuantity INT;
+    DECLARE @newStart DATETIME;
+    DECLARE @newEnd DATETIME;
+
+    -- Pobieramy dane zamówienia, którego ilość się zmieniła
+    SELECT TOP 1
+        @changedOrderID = i.ProductionOrderId,
+        @productionLineID = i.ProductionLineId,
+        @newQuantity = i.Quantity,
+        @newStart = i.PlannedStartDate
+    FROM inserted i;
+
+    -- 1. Przeliczamy nowy koniec dla tego zamówienia
+    DECLARE @minutesNeeded INT;
+    SELECT @minutesNeeded = CAST(@newQuantity * p.EstimatedProductionTime * 60 AS INT)
+    FROM Products p WHERE p.ProductId = (SELECT ProductId FROM inserted WHERE ProductionOrderId = @changedOrderID);
+
+    SET @newEnd = dbo.AddProductionTime(@newStart, @minutesNeeded, @productionLineID);
+
+    -- Aktualizujemy koniec tego zamówienia 
+    UPDATE ProductionOrder SET PlannedEndDate = @newEnd WHERE ProductionOrderId = @changedOrderID;
+
+    -- 2. LOGIKA PRZESUWANIA RESZTY 
+
+    DECLARE @anchor DATETIME = @newEnd;
+--     Przesunięcie wszystkich zamówień o czas aktualnego 
+    EXEC dbo.usp_RescheduleProductionLine @ProductionLineId = @productionLineID, @AnchorDate = @anchor, @ExcludedOrderId = @changedOrderID
+
+    DECLARE @EstimatedTimePerUnit decimal(6,2);
+    DECLARE @TimeDiffHours decimal(6,2);
+    DECLARE @OldQuantity int
+
+
+    SELECT
+        @OldQuantity=deleted.Quantity,
+        @EstimatedTimePerUnit=EstimatedProductionTime
+    FROM deleted
+    INNER JOIN Products
+    ON Products.ProductId=deleted.ProductId
+
+    -- Obliczamy ile godzin ubyło (różnica sztuk * czas jednostkowy)
+    SET @TimeDiffHours = (@OldQuantity - @NewQuantity) * @EstimatedTimePerUnit;
+
+    -- 1. Wywołujemy procedurę czyszczącą alokację od końca
+    EXEC dbo.usp_ReduceAllocatedHoursFromEnd @productionLineID, @TimeDiffHours;
+END
+go
+
+
+
+```
+
 # 4. Inne
 
 (informacja o sposobie wygenerowania danych, uprawnienia …)
@@ -1829,9 +2273,6 @@ GO
 
 
 
-anulowanie zamowienia produkcyjnego
-usuwanie jakiejś ilości aktualnie produkowanych produktow w production orders 
-procedura na przeuswanie zamówien produkcyjnych o daną ilośc godzin produkcyjnych  
 
 
 aktualizacja zamowienia -> zmniejszenie lub zwiekszenie ilości lub anulowanie
