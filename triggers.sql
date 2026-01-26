@@ -340,7 +340,7 @@ BEGIN
     DECLARE @CurrentProductID INT;
     DECLARE @NeededQuantity INT;
     DECLARE @FarFutureDeadline DATE = '2046-01-01';
-    DECLARE @Items OrderItem; -- Twój typ tabelaryczny
+    DECLARE @Items OrderItem;
 
     -- 2. Kursor przechodzący po wierszach spełniających warunki braku magazynowego
     DECLARE stock_cur CURSOR STATIC LOCAL FOR
@@ -360,13 +360,10 @@ BEGIN
 
     WHILE @@FETCH_STATUS = 0
     BEGIN
-        -- 3. Czyścimy i przygotowujemy zmienną tabelaryczną dla BIEŻĄCEGO produktu
         DELETE FROM @Items;
 
         INSERT INTO @Items (ProductID, Quantity, Discount)
         VALUES (@CurrentProductID, @NeededQuantity, 0);
-
-        -- 4. Wywołanie Twojej głównej procedury
         EXEC RedirectItems @Items = @Items, @Deadline = @FarFutureDeadline;
 
         FETCH NEXT FROM stock_cur INTO @CurrentProductID, @NeededQuantity;
