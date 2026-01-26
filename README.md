@@ -74,14 +74,14 @@ Załóżmy, że brakuje nam q sztuk produktu. \
 Sprawdzamy czy jesteśmy w stanie wyprodukować q sztuk do daty maksymalnego czekania podanej przez klienta.\
 Na początku sprawdzamy wszystkie aktywne zamówienia produkcyjne na te produkty.\
 Dla każdego takiego Production Order przekierowujemy produkcje, która miała uzupełnić braki na nowe zamówienie klienta.
- Gdy natrafimy na Production Order, które w całości jest w stanie pokryć zapotrzebowanie na wymaganą liczbę produktów obliczamy przybliżoną date wyprodukowania ich. Jeśli zamówienie było już w produkcji pobieramy dane z ProductionHistory.\
+Gdy natrafimy na Production Order, które w całości jest w stanie pokryć zapotrzebowanie na wymaganą liczbę produktów obliczamy przybliżoną date wyprodukowania ich. Jeśli zamówienie było już w produkcji pobieramy dane z ProductionHistory.\
 Jeśli nie ma wpisu z dnia, który nas interesuje sprawdzamy szacunkową ilość wyprodukowanego produktu w ten dzień, uwzględniając godziny przestoju lini (DowntimeHours).\
 Dzień w którym wyprodukujemy więcej lub tyle samo sztuk produktu co Available-Reserved-q, jest dniem w którym możemy wysłać ten produkt.\
 Załóżmy, że nie byliśmy w stanie znaleźć q sztuk do przekierowania. Po całej operacji zostaje nam x sztuk, których klient oczekuje.\
  Tworzymy nowe zlecenie na x sztuk. Tworząc ProductionOrder sprawdzamy czy nie zostanie przekroczona data podana przez klienta.\
 Gdy spełnimy wszystkie te warunki możemy przyjąć zamówienie.
 
-Każdy wpis w Production History, który zawiera Rejected Quantity przesuwa wszystkie trwające oraz zaplanowane produkcje na lini o RejectedQuantity*EstimatedProductionTime w przód
+Każdy wpis w Production History, który zawiera Rejected Quantity przesuwa wszystkie trwające oraz zaplanowane produkcje na lini o RejectedQuantity\*EstimatedProductionTime w przód
 
 ### Schemat działania produkcji
 
@@ -176,11 +176,11 @@ CREATE TABLE Orders (
 
    CONSTRAINT Orders_Employees FOREIGN KEY (EmployeeID)
       REFERENCES Employees (EmployeeID),
-       
+
 
    CONSTRAINT Orders_Customers FOREIGN KEY (CustomerID)
       REFERENCES Customers (CustomerID)
-      
+
 );
 ```
 
@@ -214,7 +214,7 @@ CREATE TABLE Payments (
 
    CONSTRAINT Payments_Orders FOREIGN KEY (OrderID)
       REFERENCES Orders (OrderID)
-    
+
 );
 ```
 
@@ -278,7 +278,6 @@ CREATE TABLE Parts (
 | PartsCategories_ProductCategoryId | int         | Klucz obcy do tabeli PartsCategories, identyfikuje kategorię części |
 | PartName                          | varchar(50) | Nazwa części                                                        |
 | PartPrice                         | money       | Cena części                                                         |
-
 
 ---
 
@@ -813,7 +812,7 @@ as
     where quantityToUse>0
     order by cumulativeQuantity DESC
 
-   
+
 
     SET @RemainingQuantity=COALESCE(@RemainingQuantity,@QuantityToProduce)
     BEGIN TRY
@@ -826,7 +825,7 @@ as
                 end
     end try
     begin catch
-        THROW 
+        THROW
     end catch
 go
 
@@ -865,7 +864,7 @@ as
             THROW 50004,N'Jeden lub więcej produktów zostało wycofanych',1;
         END
 
-      
+
    -- Sprawdź czy można wyprodukować podane produkty do @Deadline
     BEGIN TRY
         EXEC RedirectItems @Items=@Items,@Deadline = @Deadline,@OnlyCheck = 1
@@ -910,7 +909,7 @@ go
 
 ### Procedura: RedirectItems
 
-Pomocnicza procedura, która wywołuje procedure  `RedirectAndCreateNewOrder` dla każdego produkty z tabeli `Items`. Flaga `OnlyCheck` dla wartości 1 sprawdza tylko możliwości produkcyjne. Dla wartości 0 dodaje nowe zamówienia produkcyjne w miarę potrzeb. 
+Pomocnicza procedura, która wywołuje procedure `RedirectAndCreateNewOrder` dla każdego produkty z tabeli `Items`. Flaga `OnlyCheck` dla wartości 1 sprawdza tylko możliwości produkcyjne. Dla wartości 0 dodaje nowe zamówienia produkcyjne w miarę potrzeb.
 
 ```sql
 CREATE procedure RedirectItems
@@ -934,7 +933,7 @@ as
             deallocate productCursor
             return
         end
--- Dla każdej pozycji zamówienia sprawdź czy można ją wyprodukować do terminu @Deadline. Jeśli @OnlyCheck=0 zostaną też w miare potrzeb stworzone nowe zlecenia produkcyjne. 
+-- Dla każdej pozycji zamówienia sprawdź czy można ją wyprodukować do terminu @Deadline. Jeśli @OnlyCheck=0 zostaną też w miare potrzeb stworzone nowe zlecenia produkcyjne.
     DECLARE @CurrentProductID int
     DECLARE @CurrentQuantity int
     BEGIN TRANSACTION ;
@@ -951,7 +950,7 @@ as
         close productCursor
         deallocate productCursor
         COMMIT TRANSACTION ;
-        
+
     end try
     begin catch
 
@@ -1055,7 +1054,7 @@ go
 
 ### Procedura: CreateNewProductionOrder
 
-Procedura alokuje czas na nowe zamówienie oraz je tworzy. Procedura oblicza dokładne godziny rozpoczęcia oraz zakończenia zamówienia. 
+Procedura alokuje czas na nowe zamówienie oraz je tworzy. Procedura oblicza dokładne godziny rozpoczęcia oraz zakończenia zamówienia.
 
 ```sql
 CREATE procedure CreateNewProductionOrder
@@ -1110,7 +1109,7 @@ as
         and HoursTotal>HoursAllocated
         and Date>=cast(getdate() as date)
 
-    
+
     select @ShiftStartOnFirstDay=ShiftStart,
            @ShiftEndOnFirstDay=ShiftEnd
     from ProductionLineTimeAllocation
@@ -1119,7 +1118,7 @@ as
 --     W przypadku gdy zaczynamy produkcję od następnej pełnej godziny, sprawdź czy godzina zawiera się pomiędzy ShiftStart a ShiftEnd.
 --     Jeśli godzina rozpoczęcia jest większa od ShiftEnd zaczynamy produkcję od ShiftStart z następnego dnia gdzie jest możliwa produkcja
 --     Jeśli godzina rozpoczęcia jest mniejsza od ShiftStart zaczynamy produkcję od ShiftStart z tego samego dnia
-    
+
     select @ProductionStartDate=
         CASE
             WHEN cast(@ProductionStartDate as time(0)) >= @ShiftEndOnFirstDay
@@ -1191,9 +1190,9 @@ as
     from cumulativeTime
     where CumulativeAvailable>=@EstimatedTime
 
-    
+
 --     Jeśli nie możemy wyprodukować produktu w podanym czasie zwraca błąd
-     IF @ProductionEndDate is null 
+     IF @ProductionEndDate is null
         BEGIN
             THROW 50000,N'Nie mozna wyprodukowac podanych produktow w podanym czasie',1;
         END
@@ -1204,7 +1203,7 @@ as
         END
 
     DECLARE @EfiiciencyFactor  decimal(10,6)=dbo.CalculateEfficiencyFactor (@ProductionEndDate,@ProductionLineID )
-    
+
 
 --     Oblicz godzine, ostatniego dnia produkcji
     select @ProductionEndDate=
@@ -1223,7 +1222,7 @@ as
     from ProductionLineTimeAllocation
     where ProductionLineId=@ProductionLineID
     and Date = @ProductionEndDate
-    
+
 
 -- Zaalokuj wymagane godziny
     UPDATE ProductionLineTimeAllocation
@@ -1294,15 +1293,15 @@ BEGIN
         JOIN OrderDetails od ON o.OrderID = od.OrderID
         JOIN CustomerType ct ON c.CustomerType = ct.TypeID
         JOIN OrderStatus os ON o.Status = os.OrderStatusID
-        WHERE os.OrderStatusName 
+        WHERE os.OrderStatusName
             IN ('Opłacone', 'Gotowe do wysyłki', 'Zrealizowane')
             AND (
                 (YEAR(o.OrderDate) > @StartYear OR
-                 (YEAR(o.OrderDate) = @StartYear AND 
+                 (YEAR(o.OrderDate) = @StartYear AND
                  MONTH(o.OrderDate) >= @StartMonth))
                 AND
                 (YEAR(o.OrderDate) < @EndYear OR
-                 (YEAR(o.OrderDate) = @EndYear AND 
+                 (YEAR(o.OrderDate) = @EndYear AND
                  MONTH(o.OrderDate) <= @EndMonth))
             )
         GROUP BY c.CustomerID, c.CustomerName, ct.TypeName
@@ -1327,7 +1326,7 @@ go
 
 ### Procedura: TopSellingProducts
 
-Procedura tworzy ranking bestsellerów na podstawie przychodów ze sprzedaży produktów w określonym przedziale czasowym. 
+Procedura tworzy ranking bestsellerów na podstawie przychodów ze sprzedaży produktów w określonym przedziale czasowym.
 
 ```sql
 CREATE PROCEDURE sp_TopSellingProducts
@@ -1365,15 +1364,15 @@ BEGIN
     JOIN OrderDetails od ON p.ProductId = od.ProductId
     JOIN Orders o ON od.OrderID = o.OrderID
     JOIN OrderStatus os ON o.Status = os.OrderStatusID
-    WHERE os.OrderStatusName 
+    WHERE os.OrderStatusName
         IN ('Opłacone', 'Gotowe do wysyłki', 'Zrealizowane')
         AND (
             (YEAR(o.OrderDate) > @StartYear OR
-             (YEAR(o.OrderDate) = @StartYear AND 
+             (YEAR(o.OrderDate) = @StartYear AND
              MONTH(o.OrderDate) >= @StartMonth))
             AND
             (YEAR(o.OrderDate) < @EndYear OR
-             (YEAR(o.OrderDate) = @EndYear AND 
+             (YEAR(o.OrderDate) = @EndYear AND
              MONTH(o.OrderDate) <= @EndMonth))
         )
     GROUP BY
@@ -1429,11 +1428,11 @@ BEGIN
     JOIN ProductionLine pl ON po.ProductionLineId = pl.ProductionLineId
     WHERE (
             (YEAR(ph.ProducedDate) > @StartYear OR
-             (YEAR(ph.ProducedDate) = @StartYear AND 
+             (YEAR(ph.ProducedDate) = @StartYear AND
              MONTH(ph.ProducedDate) >= @StartMonth))
             AND
             (YEAR(ph.ProducedDate) < @EndYear OR
-             (YEAR(ph.ProducedDate) = @EndYear AND 
+             (YEAR(ph.ProducedDate) = @EndYear AND
              MONTH(ph.ProducedDate) <= @EndMonth))
         )
         AND (@ProductionLineId IS NULL OR pl.ProductionLineId = @ProductionLineId)
@@ -1459,7 +1458,7 @@ go
 
 ### Procedura: MonthlySales
 
-Procedura generuje zestawienie miesięcznych przychodów ze sprzedaży z możliwością filtrowania po wybranym okresie. 
+Procedura generuje zestawienie miesięcznych przychodów ze sprzedaży z możliwością filtrowania po wybranym okresie.
 
 ```sql
 CREATE PROCEDURE sp_MonthlySales
@@ -1489,21 +1488,97 @@ BEGIN
     FROM Orders o
     JOIN OrderDetails od ON o.OrderID = od.OrderID
     JOIN OrderStatus os ON o.Status = os.OrderStatusID
-    WHERE os.OrderStatusName 
+    WHERE os.OrderStatusName
         IN ('Opłacone', 'Gotowe do wysyłki', 'Zrealizowane')
         AND (
             (YEAR(o.OrderDate) > @StartYear OR
-             (YEAR(o.OrderDate) = @StartYear AND 
+             (YEAR(o.OrderDate) = @StartYear AND
              MONTH(o.OrderDate) >= @StartMonth))
             AND
             (YEAR(o.OrderDate) < @EndYear OR
-             (YEAR(o.OrderDate) = @EndYear AND 
+             (YEAR(o.OrderDate) = @EndYear AND
              MONTH(o.OrderDate) <= @EndMonth))
         )
     GROUP BY YEAR(o.OrderDate), MONTH(o.OrderDate)
     ORDER BY SalesYear DESC, SalesMonth DESC;
 END
 go
+```
+
+### Procedura: Cancel Order
+
+Procedura pozwala na anulowanie zamowienia
+
+```sql
+CREATE OR ALTER PROCEDURE CancelFullOrder
+@OrderID INT
+AS
+BEGIN
+SET NOCOUNT ON;
+
+    -- 1. Blokada dla zamówień wysłanych/zrealizowanych
+    IF EXISTS (SELECT 1 FROM Orders WHERE OrderID = @OrderID AND Status IN (3, 4, 5))
+    BEGIN
+        RETURN;
+    END
+
+    -- 2. Aktualizacja statusu
+    UPDATE Orders
+    SET Status = 5 -- 'Anulowane'
+    WHERE OrderID = @OrderID;
+
+END;
+GO
+```
+
+### Procedura: Update Order Product Quantity
+
+Procedura pozwala na zmiane ilosci produktu w zamowieniu
+
+```sql
+CREATE OR ALTER PROCEDURE UpdateOrderProductQuantity
+@OrderID INT,
+@ProductID INT,
+@NewQuantity INT
+AS
+BEGIN
+SET NOCOUNT ON;
+
+    -- 1. Blokada edycji dla zamówień gotowe do wys(3), zrealizowane (4) lub anulowane (5)
+    IF EXISTS (SELECT 1 FROM Orders WHERE OrderID = @OrderID AND Status IN (3, 4, 5))
+    BEGIN
+        RETURN;
+    END
+
+    -- 3. Scenariusz: Usuwanie produktu (ilość <= 0)
+    IF @NewQuantity <= 0
+    BEGIN
+        -- Usuwamy z detali zamówienia
+        DELETE FROM OrderDetails
+        WHERE OrderID = @OrderID AND ProductID = @ProductID;
+
+        -- Usuwamy odpowiadającą rezerwację
+        DELETE FROM ProductReservation
+        WHERE OrderID = @OrderID AND ProductID = @ProductID;
+    END
+    -- 4. Scenariusz: Aktualizacja ilości
+    ELSE
+    BEGIN
+        -- Aktualizujemy ilość w zamówieniu
+        UPDATE OrderDetails
+        SET Quantity = @NewQuantity
+        WHERE OrderID = @OrderID AND ProductID = @ProductID;
+
+        -- Aktualizujemy ilość w rezerwacji
+        UPDATE ProductReservation
+        SET Quantity = @NewQuantity
+        WHERE OrderID = @OrderID AND ProductID = @ProductID;
+    END
+
+    -- Po zmianiae reserved uruchomia sie trigger na ProducTresevation ktory robi update producktu
+
+END;
+GO
 ```
 
 ### Funkcja: Total order value
@@ -1971,67 +2046,114 @@ i odejmuje ilości z 'deleted' (koniec rezerwacji) od kolumny Products.Reserved.
 W przypadku dodania produktów sprawdza czy akutalne zasoby magazynu wystarczą na zamówienie, jeśli nie stworzy nowe zamówienie produkcyjne.
 
 ```sql
-CREATE   TRIGGER trg_ProductReservation_UpdateProductsReserved
+CREATE OR ALTER TRIGGER trg_ProductReservation_UpdateProductsReserved
 ON ProductReservation
 AFTER INSERT, UPDATE, DELETE
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- 1. Obsługa nowych rezerwacji lub zwiększenia ilości (INSERT/UPDATE)
+    -- 1. OBSŁUGA ZWIĘKSZENIA REZERWACJI / NOWYCH POZYCJI
+    IF EXISTS (SELECT 1 FROM inserted i
+              LEFT JOIN deleted d ON i.OrderID = d.OrderID AND i.ProductID = d.ProductID
+              WHERE d.Quantity IS NULL OR i.Quantity > d.Quantity)
+    BEGIN
+        DECLARE @CurrentOrderID INT;
+        DECLARE @CurrentDeadline DATE;
+        DECLARE @Items OrderItem;
+
+        DECLARE order_cur CURSOR FOR
+        SELECT DISTINCT i.OrderID, o.RequiredDate
+        FROM inserted i
+        JOIN Orders o ON i.OrderID = o.OrderID
+        -- Ważne: filtrujemy kursor, by brał tylko zamówienia ze wzrostem ilości
+        WHERE EXISTS (
+            SELECT 1 FROM inserted i2
+            LEFT JOIN deleted d2 ON i2.OrderID = d2.OrderID AND i2.ProductID = d2.ProductID
+            WHERE i2.OrderID = i.OrderID AND (d2.Quantity IS NULL OR i2.Quantity > d2.Quantity)
+        );
+
+        OPEN order_cur;
+        FETCH NEXT FROM order_cur INTO @CurrentOrderID, @CurrentDeadline;
+
+        WHILE @@FETCH_STATUS = 0
+        BEGIN
+            -- CZYŚCIMY zawartość zmiennej przed kolejnym zamówieniem
+            DELETE FROM @Items;
+
+            INSERT INTO @Items(ProductID, Quantity, Discount)
+            SELECT
+                i.ProductId,
+                (i.Quantity - ISNULL(d.Quantity, 0)),
+                od.Discount
+            FROM inserted i
+            INNER JOIN OrderDetails od ON od.OrderID = i.OrderID AND od.ProductId = i.ProductID
+            LEFT JOIN deleted d ON i.OrderID = d.OrderID AND i.ProductID = d.ProductID
+            WHERE i.OrderID = @CurrentOrderID
+              AND (i.Quantity > d.Quantity OR d.Quantity IS NULL);
+
+            IF EXISTS (SELECT 1 FROM @Items)
+            BEGIN
+                EXEC RedirectItems @Items = @Items, @Deadline = @CurrentDeadline;
+            END
+
+            FETCH NEXT FROM order_cur INTO @CurrentOrderID, @CurrentDeadline;
+        END
+
+        CLOSE order_cur;
+        DEALLOCATE order_cur;
+    END
+
+    -- 2. OBSŁUGA ZMNIEJSZENIA REZERWACJI / ANULOWANIA (Redukcja produkcji)
+    IF EXISTS (SELECT 1 FROM deleted d
+               LEFT JOIN inserted i ON i.OrderID = d.OrderID AND i.ProductID = d.ProductID
+               WHERE i.Quantity IS NULL OR d.Quantity > i.Quantity)
+    BEGIN
+        -- Kursor lub pętla do obsłużenia redukcji dla każdego produktu
+        DECLARE @RedProductId INT, @DiffQuantity INT;
+
+        DECLARE cur CURSOR FOR
+        SELECT
+            d.ProductId,
+            (d.Quantity - ISNULL(i.Quantity, 0))
+        FROM deleted d
+        LEFT JOIN inserted i ON i.OrderID = d.OrderID AND i.ProductID = d.ProductID
+        WHERE (d.Quantity > i.Quantity OR i.Quantity IS NULL);
+
+        OPEN cur;
+        FETCH NEXT FROM cur INTO @RedProductId, @DiffQuantity;
+        WHILE @@FETCH_STATUS = 0
+        BEGIN
+            -- W TYM MIEJSCU POWINO ZOSTAC WYWOWALE ZMNIEJSNIE ZAMOWIENIA PRODUKCJI
+            -- EXEC ReduceProductProduction @ProductID = @RedProductId, @Quantity = @DiffQuantity;
+            FETCH NEXT FROM cur INTO @RedProductId, @DiffQuantity;
+        END
+        CLOSE cur;
+        DEALLOCATE cur;
+    END
+
+    -- 3. AKTUALIZACJA POLA RESERVED W TABELI PRODUCTS
+    -- Zwiększanie o to co wstawiono/zmieniono na plus
     IF EXISTS (SELECT 1 FROM inserted)
     BEGIN
-        DECLARE @Deadline date
-        
-        select @Deadline=o.RequiredDate
-        from inserted i
-        inner join Orders o on o.OrderID=i.OrderID
-        
-        DECLARE @Items OrderItem
-
-        insert into @Items(ProductID,Quantity,Discount)
-        select i.ProductId,i.Quantity,od.Discount
-        from inserted i
-        inner join OrderDetails od on od.OrderID=i.OrderID and od.ProductId=i.ProductID
-        
-        begin try
-            EXEC RedirectItems @Items = @Items, @Deadline = @Deadline
-        end try
-        begin catch
-            throw
-        end catch
-
-
         UPDATE p
         SET p.Reserved = ISNULL(p.Reserved, 0) + i.TotalQty
         FROM Products p
-        INNER JOIN (
-            SELECT ProductID, SUM(Quantity) AS TotalQty
-            FROM inserted 
-            GROUP BY ProductID
-        ) i ON p.ProductId = i.ProductID;
-
-
-        
-
+        INNER JOIN (SELECT ProductID, SUM(Quantity) AS TotalQty FROM inserted GROUP BY ProductID) i
+        ON p.ProductId = i.ProductID;
     END
 
-    -- 2. Obsługa usuniętych rezerwacji lub starej ilości przy zmianie (DELETE/UPDATE)
+    -- Zmniejszanie o to co usunięto/zmieniono na minus
     IF EXISTS (SELECT 1 FROM deleted)
     BEGIN
         UPDATE p
         SET p.Reserved = ISNULL(p.Reserved, 0) - d.TotalQty
         FROM Products p
-        INNER JOIN (
-            SELECT ProductID, SUM(Quantity) AS TotalQty 
-            FROM deleted 
-            GROUP BY ProductID
-        ) d ON p.ProductId = d.ProductID;
+        INNER JOIN (SELECT ProductID, SUM(Quantity) AS TotalQty FROM deleted GROUP BY ProductID) d
+        ON p.ProductId = d.ProductID;
     END
-
-
 END
-go
+GO
 ```
 
 ### Trigger: Fulfill order
@@ -2274,20 +2396,14 @@ go
 
 
 
-
 aktualizacja zamowienia -> zmniejszenie lub zwiekszenie ilości lub anulowanie
 available-reseerved<minimal quantity -> tworzy nowe zamowienie produkcyjne
 trigger na production history -> zmienia quantityProduced w productionOrder i status i dodaje endDate
 
-
 przychodzy z różnych okresów -> zmienic na procedure
-zestawienie przychodow - > year i month 
-
-
-
+zestawienie przychodow - > year i month
 
 Co jest wymagane przy prezentacji:
 
 1.złozenie zamówienia
-2.niewłaściwie parametry, nieistnieje produkt , wyofany produkt, nie istnieje
-3. nieudana produkcja, nie da rady zrobic zamowienia -> poinformowanie klientow
+2.niewłaściwie parametry, nieistnieje produkt , wyofany produkt, nie istnieje 3. nieudana produkcja, nie da rady zrobic zamowienia -> poinformowanie klientow
