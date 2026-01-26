@@ -1615,6 +1615,292 @@ END
 GO
 ```
 
+
+### Funkcja : AddProductionTime
+
+Funkcja doda ilość podanych minut do podanej daty. Robiąc to dba o warunki bazy:
+- Czas musi znajdywać się pomiędzy `ShiftStart` a `ShiftEnd`
+- Linia musi pracować w ten dzień
+
+```sql
+CREATE FUNCTION dbo.AddProductionTime (
+    @startDate DATETIME, 
+    @minutesToAdd INT, 
+    @productionLineId INT
+)
+RETURNS DATETIME
+AS
+BEGIN
+    DECLARE @currentAnchor DATETIME = @startDate;
+    DECLARE @remainingMinutes DECIMAL(18,2) = @minutesToAdd;
+    DECLARE @resultDateTime DATETIME;
+
+    WHILE @remainingMinutes > 0
+    BEGIN
+        DECLARE @actualShiftEnd DATETIME;
+        DECLARE @factor DECIMAL(10,4);
+
+        -- 1. Pobieramy dane zmiany i wydajność
+        SELECT TOP 1 
+            @actualShiftEnd = CAST(CAST(date AS DATETIME) + CAST(ShiftEnd AS DATETIME) AS DATETIME),
+            @factor = dbo.CalculateEfficiencyFactor(date, @productionLineId)
+        FROM ProductionLineTimeAllocation
+        WHERE ProductionLineId = @productionLineId 
+          AND date = CAST(@currentAnchor AS DATE);
+
+        -- Zabezpieczenie przed dzieleniem przez zero
+        IF @factor IS NULL OR @factor = 0 SET @factor = 1;
+
+        -- 2. Ile minut zegarowych zostało do końca zmiany
+        DECLARE @clockMinutesToShiftEnd INT = DATEDIFF(MINUTE, @currentAnchor, @actualShiftEnd);
+
+        -- 3. Ile minut produkcyjnych (efektywnych) zmieścimy do końca zmiany
+        DECLARE @effectiveMinutesAvailableToday DECIMAL(18,2) = @clockMinutesToShiftEnd * @factor;
+
+        IF @effectiveMinutesAvailableToday >= @remainingMinutes
+        BEGIN
+            -- DZIEŃ OSTATNI:
+            -- Musimy przeliczyć pozostałe minuty produkcyjne na zegarowe
+            -- Przykład: zostało 480 min prod / 16.6 factor = ~29 min zegarowych
+            DECLARE @clockMinutesToUse INT = CEILING(@remainingMinutes / @factor);
+            
+            SET @resultDateTime = DATEADD(MINUTE, @clockMinutesToUse, @currentAnchor);
+            SET @remainingMinutes = 0;
+        END
+        ELSE
+        BEGIN
+            -- SKOK DO JUTRA:
+            -- Zużywamy cały dostępny czas produkcyjny dzisiaj
+            SET @remainingMinutes = @remainingMinutes - @effectiveMinutesAvailableToday;
+
+            -- Szukamy początku kolejnej zmiany
+            SELECT TOP 1 
+                @currentAnchor = CAST(CAST(date AS DATETIME) + CAST(ShiftStart AS DATETIME) AS DATETIME)
+            FROM ProductionLineTimeAllocation
+            WHERE ProductionLineId = @productionLineId 
+              AND date > CAST(@currentAnchor AS DATE)
+              AND HoursTotal>0
+            ORDER BY date ASC;
+
+            IF @@ROWCOUNT = 0 
+            BEGIN 
+                SET @resultDateTime = @actualShiftEnd; 
+                SET @remainingMinutes = 0; 
+            END
+        END
+    END
+    RETURN @resultDateTime;
+END
+go
+
+
+```
+
+### Procedura : ReduceAllocatedHoursFromEnd
+
+Procedura usuwa czas, który był zaalokowany. Robi to od końca
+
+```sql
+CREATE   PROCEDURE dbo.ReduceAllocatedHoursFromEnd
+    @ProductionLineId INT,
+    @HoursToReduce DECIMAL(18,2)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @RemainingHours DECIMAL(18,2) = @HoursToReduce;
+    DECLARE @TargetDate DATE;
+    DECLARE @CurrentAllocated DECIMAL(18,2);
+
+    -- Pętla działa dopóki mamy godziny do odjęcia
+    WHILE @RemainingHours > 0.01 -- Tolerancja dla zaokrągleń
+    BEGIN
+        -- Znajdź ostatni dzień, który ma jeszcze jakieś godziny
+        SELECT TOP 1
+            @TargetDate = Date,
+            @CurrentAllocated = HoursAllocated
+        FROM ProductionLineTimeAllocation
+        WHERE ProductionLineId = @ProductionLineId
+          AND HoursAllocated > 0
+        ORDER BY Date DESC;
+
+        -- Jeśli nie ma już zaalokowanych godzin w żadnym dniu, kończymy
+        IF @TargetDate IS NULL BREAK;
+
+        IF @CurrentAllocated >= @RemainingHours
+        BEGIN
+            -- Dzisiejsza alokacja wystarczy, by pokryć redukcję
+            UPDATE ProductionLineTimeAllocation
+            SET HoursAllocated = @CurrentAllocated - @RemainingHours
+            WHERE ProductionLineId = @ProductionLineId AND Date = @TargetDate;
+
+            SET @RemainingHours = 0;
+        END
+        ELSE
+        BEGIN
+            -- Czyścimy ten dzień do zera i przechodzimy do poprzedniego
+            UPDATE ProductionLineTimeAllocation
+            SET HoursAllocated = 0
+            WHERE ProductionLineId = @ProductionLineId AND Date = @TargetDate;
+
+            SET @RemainingHours = @RemainingHours - @CurrentAllocated;
+        END
+    END
+END
+go
+
+```
+
+### Procedura : RemoveProductQuantityFromOrders
+
+Procedura usunie podaną ilość produktów z zamówień produkcyjnych. Robi to od ostatniego zamówienia.
+
+```sql
+CREATE   PROCEDURE dbo.RemoveProductQuantityFromOrders
+    @ProductId INT,
+    @QuantityToRemove INT,
+    @ProductionLineId INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @AvailableToRelease INT;
+    DECLARE @RemainingToDelete INT = @QuantityToRemove;
+    DECLARE @CurrentOrderID INT;
+    DECLARE @OrderQty INT;
+    Declare @ProductionSum int
+    Declare @TotalSum int
+    -- 1. Walidacja rezerwacji
+    select TOP 1 @ProductionSum=sum(Quantity-QuantityProduced)
+    from ProductionOrder
+    inner join Products
+    on ProductionOrder.ProductId = Products.ProductId
+    where ProductionLineId=@ProductionLineId
+    and ProductionOrder.ProductId=@ProductId
+    
+    select @TotalSum=Available+@ProductionSum-Reserved
+    from Products
+    where ProductId=@ProductId
+    
+    select @QuantityToRemove,@TotalSum,@ProductionSum
+    IF @QuantityToRemove > @TotalSum or @QuantityToRemove>@ProductionSum
+    BEGIN
+        RAISERROR('BŁĄD: Brak wystarczającej ilości produktów.', 16, 1);
+
+    END
+
+    -- 2. Kursor pobierający zamówienia
+    DECLARE cur CURSOR LOCAL FOR
+    SELECT ProductionOrderId, Quantity
+    FROM ProductionOrder
+    WHERE ProductId = @ProductId
+      AND (@ProductionLineId IS NULL OR ProductionLineId = @ProductionLineId)
+      AND ProductionOrderStatus IN (1, 2)
+    ORDER BY PlannedStartDate DESC;
+
+    OPEN cur;
+    FETCH NEXT FROM cur INTO @CurrentOrderID, @OrderQty;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        WHILE @@FETCH_STATUS = 0 AND @RemainingToDelete > 0
+        BEGIN
+            IF @OrderQty <= @RemainingToDelete
+            BEGIN
+                -- USUWANIE CAŁKOWITE
+                DELETE FROM ProductionOrder WHERE ProductionOrderId = @CurrentOrderID;
+                SET @RemainingToDelete = @RemainingToDelete - @OrderQty;
+
+                
+            END
+            ELSE
+            BEGIN
+                -- USUWANIE CZĘŚCIOWE (UPDATE)
+                -- Zmieniamy ilość w zamówieniu o brakującą różnicę
+                UPDATE ProductionOrder
+                SET Quantity = Quantity - @RemainingToDelete
+                WHERE ProductionOrderId = @CurrentOrderID;
+
+
+                SET @RemainingToDelete = 0;
+            END
+
+            FETCH NEXT FROM cur INTO @CurrentOrderID, @OrderQty;
+        END
+
+        COMMIT TRANSACTION;
+
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+
+    CLOSE cur;
+    DEALLOCATE cur;
+END
+go
+
+```
+
+
+### Procedura : RescheduleProductionLine
+Procedura, która przesuwa zamówienia. Korzysta z funkcji `AddProductionTime`, aby obliczyć czas zakończenia zamówienia.
+```sql
+CREATE   PROCEDURE dbo.RescheduleProductionLine
+    @ProductionLineId INT,
+    @AnchorDate DATETIME,  -- Data, od której zaczynamy układać kolejne zlecenia
+    @ExcludedOrderId INT = NULL -- ID zlecenia, które wywołało zmianę (żeby go nie przesuwać)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @nextID INT;
+    DECLARE @nextMinutes INT;
+    DECLARE @currentAnchor DATETIME = @AnchorDate;
+
+    -- Kursor pobierający wszystkie aktywne zlecenia po dacie zakotwiczenia
+    DECLARE curNext CURSOR LOCAL FOR
+    SELECT
+        po.ProductionOrderId,
+        CAST(po.Quantity * p.EstimatedProductionTime * 60 AS INT)
+    FROM ProductionOrder po
+    INNER JOIN Products p ON po.ProductId = p.ProductId
+    WHERE po.ProductionLineId = @ProductionLineId
+      AND po.PlannedStartDate >= @AnchorDate -- Bierzemy wszystko od punktu startu
+      AND (@ExcludedOrderId IS NULL OR po.ProductionOrderId <> @ExcludedOrderId)
+      AND po.ProductionOrderStatus NOT IN (3, 4) -- Pomijamy zakończone i anulowane
+    ORDER BY po.PlannedStartDate ASC;
+
+    OPEN curNext;
+    FETCH NEXT FROM curNext INTO @nextID, @nextMinutes;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        DECLARE @calcEnd DATETIME;
+
+        -- Wyliczamy nowy koniec przy użyciu funkcji kalendarzowej
+        SET @calcEnd = dbo.AddProductionTime(@currentAnchor, @nextMinutes, @ProductionLineId);
+
+        UPDATE ProductionOrder
+        SET
+            PlannedStartDate = @currentAnchor,
+            PlannedEndDate = @calcEnd
+        WHERE ProductionOrderId = @nextID;
+
+        -- Następne zamówienie zaczyna się tam, gdzie skończyło się obecne
+        SET @currentAnchor = @calcEnd;
+
+        FETCH NEXT FROM curNext INTO @nextID, @nextMinutes;
+    END
+
+    CLOSE curNext;
+    DEALLOCATE curNext;
+END
+go
+
+
+```
 ## Triggery
 
 ### Trigger: Update order status after payment
@@ -1992,22 +2278,863 @@ END;
 GO
 ```
 
+### Trigger : tr_ProductionHistory_UpdateProductionOrderDates
+Trigger wykona sie po dokonania wpisu w ProductionHistory, który zawiera Rejected Quantity. 
+Wszystkie zamówienia zostaną przesunięte o opóźnienie, które powstało.
+```sql
+CREATE TRIGGER tr_ProductionHistory_UpdateProductionOrderDates
+ON ProductionHistory
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @sourceOrderID INT;
+    DECLARE @timeToPushMinutes INT;
+    DECLARE @productionLineID INT;
+    DECLARE @newEndDateOfFirstOrder DATETIME;
+
+    SELECT TOP 1
+        @sourceOrderID = i.ProductionOrderID,
+        @productionLineID = po.ProductionLineId,
+        -- Obliczamy ile minut dodatkowo musi pracować linia
+        @timeToPushMinutes = CAST(i.RejectedQuantity * p.EstimatedProductionTime * 60 AS INT)
+    FROM inserted AS i
+    INNER JOIN ProductionOrder AS po ON i.ProductionOrderID = po.ProductionOrderID
+    INNER JOIN Products AS p ON po.ProductId = p.ProductId
+    WHERE i.RejectedQuantity > 0
+    ORDER BY i.ProductionHistoryID; 
+
+    IF @sourceOrderID IS NULL RETURN;
+
+
+
+    DECLARE @currentEnd DATETIME = (SELECT PlannedEndDate FROM ProductionOrder WHERE ProductionOrderID = @sourceOrderID);
+
+    SET @newEndDateOfFirstOrder = dbo.AddProductionTime(@currentEnd, @timeToPushMinutes, @productionLineID);
+
+    UPDATE ProductionOrder
+    SET PlannedEndDate = @newEndDateOfFirstOrder
+    WHERE ProductionOrderID = @sourceOrderID;
+
+    -- 3 Przesuwamy wszystkie kolejne zamówienia
+    EXEC dbo.usp_RescheduleProductionLine @ProductionLineId = @productionLineID, @AnchorDate = @newEndDateOfFirstOrder, @ExcludedOrderId=@sourceOrderID 
+END
+go
+
+
+```
+### Trigger :moveProductionOrders
+
+Trigger wykona się po usunięciu `ProductionOrder`. Zamiast usunięcia zmienia status na 4 (anulowane).
+Powstała luka zostanie uzupełniona przez akutalnie zlecone zamówienia.
+Odejmie się też czas który był zaalokowany na to zamówienie
+```sql
+CREATE trigger tr_moveProductionOrders
+on ProductionOrder
+instead of delete
+as
+    begin
+
+        declare @anchor datetime
+        declare @ProductioOrderID int
+        
+
+        declare @time decimal(6,2)
+        declare @productionLineID int
+
+        SELECT TOP 1 
+               @anchor=PlannedStartDate,
+               @productionLineID=ProductionLineId,
+               @time=Quantity*EstimatedProductionTime,
+               @ProductioOrderID=ProductionOrderID
+        FROM deleted
+        INNER JOIN Products
+        ON deleted.ProductId=Products.ProductId
+        ORDER BY PlannedStartDate;
+
+
+        EXEC dbo.usp_RescheduleProductionLine @ProductionLineId = @productionLineID, @AnchorDate = @anchor, @ExcludedOrderId = @ProductioOrderID
+
+
+        EXEC dbo.usp_ReduceAllocatedHoursFromEnd @ProductionLineId = @productionLineID, @HoursToReduce = @time
+
+        UPDATE ProductionOrder
+        SET ProductionOrderStatus=4
+        WHERE ProductionOrderID in (SELECT ProductionOrderID FROM deleted )
+END
+go
+
+
+```
+
+### Trigger : tr_MoveOrdersOnQuantityChange
+
+Trigger wykona się po zmianie Quantity w `ProductionOrder`. Obliczona zostanie nowa data zakończenia zamówienia.
+Wywoła procedurę, która przesunie wszystie zamówienia o powstałą lukę.
+```sql
+CREATE   TRIGGER tr_MoveOrdersOnQuantityChange
+ON ProductionOrder
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    -- Reagujemy tylko jeśli zmieniła się ilość
+    IF NOT UPDATE(Quantity) RETURN;
+
+    DECLARE @changedOrderID INT;
+    DECLARE @productionLineID INT;
+    DECLARE @newQuantity INT;
+    DECLARE @newStart DATETIME;
+    DECLARE @newEnd DATETIME;
+
+    -- Pobieramy dane zamówienia, którego ilość się zmieniła
+    SELECT TOP 1
+        @changedOrderID = i.ProductionOrderId,
+        @productionLineID = i.ProductionLineId,
+        @newQuantity = i.Quantity,
+        @newStart = i.PlannedStartDate
+    FROM inserted i;
+
+    -- 1. Przeliczamy nowy koniec dla tego zamówienia
+    DECLARE @minutesNeeded INT;
+    SELECT @minutesNeeded = CAST(@newQuantity * p.EstimatedProductionTime * 60 AS INT)
+    FROM Products p WHERE p.ProductId = (SELECT ProductId FROM inserted WHERE ProductionOrderId = @changedOrderID);
+
+    SET @newEnd = dbo.AddProductionTime(@newStart, @minutesNeeded, @productionLineID);
+
+    -- Aktualizujemy koniec tego zamówienia 
+    UPDATE ProductionOrder SET PlannedEndDate = @newEnd WHERE ProductionOrderId = @changedOrderID;
+
+    -- 2. LOGIKA PRZESUWANIA RESZTY 
+
+    DECLARE @anchor DATETIME = @newEnd;
+--     Przesunięcie wszystkich zamówień o czas aktualnego 
+    EXEC dbo.usp_RescheduleProductionLine @ProductionLineId = @productionLineID, @AnchorDate = @anchor, @ExcludedOrderId = @changedOrderID
+
+    DECLARE @EstimatedTimePerUnit decimal(6,2);
+    DECLARE @TimeDiffHours decimal(6,2);
+    DECLARE @OldQuantity int
+
+
+    SELECT
+        @OldQuantity=deleted.Quantity,
+        @EstimatedTimePerUnit=EstimatedProductionTime
+    FROM deleted
+    INNER JOIN Products
+    ON Products.ProductId=deleted.ProductId
+
+    -- Obliczamy ile godzin ubyło (różnica sztuk * czas jednostkowy)
+    SET @TimeDiffHours = (@OldQuantity - @NewQuantity) * @EstimatedTimePerUnit;
+
+    -- 1. Wywołujemy procedurę czyszczącą alokację od końca
+    EXEC dbo.usp_ReduceAllocatedHoursFromEnd @productionLineID, @TimeDiffHours;
+END
+go
+
+
+
+```
+
 # 4. Inne
 
 (informacja o sposobie wygenerowania danych, uprawnienia …)
 
-anulowanie zamowienia produkcyjnego
-usuwanie jakiejś ilości aktualnie produkowanych produktow w production orders
-procedura na przeuswanie zamówien produkcyjnych o daną ilośc godzin produkcyjnych
 
-aktualizacja zamowienia -> zmniejszenie lub zwiekszenie ilości lub anulowanie
-available-reseerved<minimal quantity -> tworzy nowe zamowienie produkcyjne
-trigger na production history -> zmienia quantityProduced w productionOrder i status i dodaje endDate
 
-przychodzy z różnych okresów -> zmienic na procedure
-zestawienie przychodow - > year i month
 
-Co jest wymagane przy prezentacji:
+# Testy bazy
+Tworzenie podstawowego zamowienia klienta.
+Test prezentuje funkcjonalności bazy:
+- opłata za zamówienie rezerwuje produkty
+- dodanie wpisu do `ProductionHistory` zwieksza `QuantityProduced` w `ProductionOrder`
+- przesuwanie czasów zakończenia zamówienia produkcyjnego w przypadku gdy wpis do `ProductionHistory zawiera` `RejectedQuantity`
+```sql
+-- ======================================================
+-- KONFIGURACJA TESTU - ZDEFINIOWANE ID
+-- ======================================================
+BEGIN TRANSACTION
+DECLARE @TestCategoryID      INT = 20000;
+DECLARE @TestProductID       INT = 20000;
+DECLARE @TestCustomerID      INT = 20000;
+DECLARE @TestOrderID         INT = 20000;
+DECLARE @TestPaymentID       INT = 20000;
+DECLARE @TestLineID          INT = 20000;
+DECLARE @TestProdOrderID     INT = 20000;
+DECLARE @ExistingProdOrderID INT = 20001;
+DECLARE @TestHistoryID       INT = 20000;
+DECLARE @ProductionLineTimeAllocationID INT =20000;
 
-1.złozenie zamówienia
-2.niewłaściwie parametry, nieistnieje produkt , wyofany produkt, nie istnieje 3. nieudana produkcja, nie da rady zrobic zamowienia -> poinformowanie klientow
+set identity_insert ProductionHistory off;
+
+-- 1. Dodanie Kategorii i Produktu
+SET IDENTITY_INSERT ProductCategories ON;
+INSERT INTO ProductCategories (ProductCategoryID, CategoryName) VALUES (@TestCategoryID, 'Elektronika Testowa'),(@TestCategoryID+1,'Meble testowe');
+SET IDENTITY_INSERT ProductCategories OFF;
+
+
+
+-- 2. Dodanie Klienta
+SET IDENTITY_INSERT Customers ON;
+INSERT INTO Customers (CustomerID, CustomerType, CustomerName, Address,Country,City,Region,PostalCode,Phone)
+VALUES (@TestCustomerID, 1, 'Jan Testowy', 'ul. Testowa 1', 'Polska', N'Kraków', N'Małopolska', '31-000','000000000');
+SET IDENTITY_INSERT Customers OFF;
+
+
+-- 3. Dodanie Infrastruktury Produkcyjnej (Pod historię)
+SET IDENTITY_INSERT ProductionLine ON;
+INSERT INTO ProductionLine (ProductionLineId, ProductCategoryId) VALUES (@TestLineID, @TestCategoryID),(@TestLineID+1,@TestCategoryID+1);
+SET IDENTITY_INSERT ProductionLine OFF;
+
+SET IDENTITY_INSERT ProductionLineTimeAllocation ON;
+INSERT INTO ProductionLineTimeAllocation (ProductionLineTimeAllocationID,ProductionLineId, HoursTotal, Date, ShiftStart, ShiftEnd)
+VALUES
+    (@ProductionLineTimeAllocationID,@TestLineID, 200,getdate(),'8:00','20:00'),
+    (@ProductionLineTimeAllocationID+1,@TestLineID, 200,dateadd(day,1,getdate()),'8:00','20:00'),
+    (@ProductionLineTimeAllocationID+2,@TestLineID+1, 200,getdate(),'8:00','20:00'),
+    (@ProductionLineTimeAllocationID+3,@TestLineID+1, 200,dateadd(day,1,getdate()),'8:00','20:00')
+SET IDENTITY_INSERT ProductionLineTimeAllocation OFF;
+
+
+-- 4. Dodanie typu tablicowego do dodawania zamówień klienta
+IF NOT EXISTS (SELECT * FROM sys.types WHERE name = 'OrderItem' AND is_table_type = 1)
+BEGIN
+    CREATE TYPE OrderItem AS TABLE (
+        ProductID INT PRIMARY KEY,
+        Quantity INT,
+        Discount DECIMAL(5, 2)
+    );
+END
+
+SET IDENTITY_INSERT Products ON;
+INSERT INTO Products (ProductId, ProductCategoryId, ProductName, EstimatedProductionTime, CurrentSellPrice, CurrentProductionCost, Available,MinimalQuantity)
+VALUES (@TestProductID, @TestCategoryID, 'Smartfon Testowy', 1.0, 2000.00, 1200.00, 10,20),
+       (@TestProductID+1,@TestCategoryID+1,'Kanapa testowa',30.0,5000.0,2500,10,2);
+SET IDENTITY_INSERT Products OFF;
+
+set @ExistingProdOrderID = @@identity
+
+
+-- Ponieważ dodajemy produkt, którego Available < MinimalQuantity stworzy się zamówienie produkcyjne
+-- Zapytanie 1
+select * from ProductionOrder
+where ProductionOrderID=@ExistingProdOrderID
+
+
+
+
+-- 5. Testy procedur i Trigerrów
+
+    DECLARE @Items OrderItem
+    DECLARE @Deadline date = dateadd(day,20,cast(getdate() as date))
+
+
+
+
+-- Stwórz zamówienie klienta
+
+    insert into @Items(ProductID,Quantity,Discount)
+    values
+        (@TestProductID,25,0),
+        (@TestProductID+1,5,0)
+
+    EXEC createCustomerOrder @CustomerID = @TestCustomerID,@Items = @Items,@Deadline = @Deadline
+
+    SET @TestOrderID=(select TOP 1 OrderID from Orders where OrderDate>=cast(getdate() as date) order by OrderID DESC)
+
+
+-- Stworzone zostało zamówienie o Statusie 1 (nieoplacone)
+-- Procedura createCustomerOrder sprawdziła tylko możliwość produkcji w podanym terminie oraz dodała wpis do Orders oraz OrderDetails
+--  1 Zapytanie
+    select * from Orders
+    where OrderID=@TestOrderID
+
+-- 2 Zapytanie
+    select * from OrderDetails
+    where OrderID=@TestOrderID
+
+-- Nie zostanie stworzone żadne nowe production mimo tego, że brakuje produktów
+-- 3 Zapytanie
+    select * from ProductionOrder
+    where AddedDate>=cast(getdate() as date)
+    and ProductionOrderStatus not in (3,4)
+
+-- 4 Zapytanie
+    SELECT * FROM Products
+    WHERE ProductId >= @TestProductID
+
+-- Sprawdź koszt zamówienia
+-- 5 Zapytanie
+    select dbo.CalculateOrderValue_FN(@TestOrderID)
+
+-- Oplac zamówienie
+    SET IDENTITY_INSERT Payments ON;
+    INSERT into Payments(PaymentID,ORDERID, AMOUNT, PAYMENTMETHOD, TRANSACTIONDATE)
+    VALUES (@TestPaymentID,@TestOrderID,dbo.CalculateOrderValue_FN (@TestOrderID),'Karta',getdate())
+    SET IDENTITY_INSERT Payments OFF;
+
+    select TOP 1 @TestProdOrderID=ProductionOrderID from ProductionOrder order by ProductionOrderID DESC
+-- Opłacenie zamówienia zmieniło jego status na 2 (opłacone)
+-- Wywołał się też trigger odpowiedzialny za rezerwację produktów. Ponieważ Available było mniejsze od potrzebnej ilości stworzyło się też zamówienie produkcyjne
+
+-- Ilość reserved została zwiękzona
+-- 6 Zapytanie
+
+    SELECT * FROM Products
+    WHERE ProductId >= @TestProductID
+
+-- Status zamówienia został zamieniony na 2 (opłacone)
+-- 7 Zapytanie
+    select * from Orders
+    where OrderID=@TestOrderID
+
+-- Dodano nowe zamówienie produkcyjne na 5 sztuk produktu
+-- 8 Zapytanie
+
+    select * from ProductionOrder
+    where AddedDate>=cast(getdate() as date)
+
+-- Dodano rekordy do ProductReservation, które określają produkty zarezerwowane przez to zamówienie
+-- 9 Zapytanie
+    select * from ProductReservation
+    where OrderID=@TestOrderID
+
+-- Zakończ zamówienie produkcyjne
+-- Dodajac rekord do ProductionHistory wywoła się trigger który zwiększy ilość Available w produktach.
+-- Sprawdzone też zostanie możliwość wysłania zamówienia
+
+
+SET IDENTITY_INSERT ProductionHistory ON;
+INSERT INTO ProductionHistory (ProductionHistoryId, ProductionOrderID, ProductId, ProducedDate, ProductionCost, Quantity, RejectedQuantity)
+VALUES (@TestHistoryID, @ExistingProdOrderID, @TestProductID, GETDATE(), 1000.00, 9, 3)
+
+set identity_insert ProductionHistory off;
+
+
+
+
+SET IDENTITY_INSERT ProductionHistory ON;
+INSERT INTO ProductionHistory(ProductionHistoryId,ProductionOrderID, ProductId, ProducedDate, ProductionCost, Quantity, RejectedQuantity)
+VALUES (@TestHistoryID+1, @TestProdOrderID, @TestProductID, GETDATE(), 1000.00, 5, 0);
+SET IDENTITY_INSERT ProductionHistory OFF;
+
+-- Poniewaz jeden z wpisow w producion history mial rejected quantity, czas sie przesunal
+    select * from ProductionOrder
+    where ProductionOrderID in (@ExistingProdOrderID,@TestProdOrderID)
+    and ProductionOrderID not in (3,4)
+
+SET IDENTITY_INSERT ProductionHistory ON;
+INSERT INTO ProductionHistory (ProductionHistoryId, ProductionOrderID, ProductId, ProducedDate, ProductionCost, Quantity, RejectedQuantity)
+VALUES (@TestHistoryID+2, @ExistingProdOrderID, @TestProductID, GETDATE(), 1000.00, 1, 0)
+
+set identity_insert ProductionHistory off;
+
+-- Status zamówienia został zmieniony na 3 (Gotowe do wysyłki)
+-- 10 Zapytanie
+    select * from Orders
+    where OrderID=@TestOrderID
+
+-- Odjęto zarezerwowaną ilość sztuk przez wywołanie triggera który zaregaował na zmiane statusu na 3 w zamówieniu
+-- 11 Zapytanie
+    SELECT * FROM Products
+    WHERE ProductId >= @TestProductID
+
+-- Ponieważ zamówienie jest gotowe do wysyłki usunięto rezerwacje produktów z ProductReservation
+-- 12 Zapytanie
+    select * from ProductReservation
+    where OrderID=@TestOrderID
+
+ROLLBACK TRANSACTION ;
+
+
+PRINT N'--- TEST ZAKOŃCZONY ---';
+
+
+```
+
+### Test: Błędne parametry
+Test pokazuje jak baza sprawdza poprawność danych. Przy tworzeniu zamówienia klienta następujące parametry wywołają błąd:
+- Brak możliwości produkcji w podanym czasie
+- Jeden z podanych produktów nie istnieje
+- Jeden z podanych produktów został wycofany
+- Podany klient nie istnieje
+```sql
+-- ======================================================
+-- KONFIGURACJA TESTU - ZDEFINIOWANE ID
+-- ======================================================
+
+DECLARE @TestCategoryID      INT = 50000;
+DECLARE @TestProductID       INT = 50000;
+DECLARE @TestCustomerID      INT = 50000;
+DECLARE @TestOrderID         INT = 50000;
+DECLARE @TestPaymentID       INT = 50000;
+DECLARE @TestLineID          INT = 50000;
+DECLARE @TestProdOrderID     INT = 50000;
+DECLARE @ExistingProdOrderID INT = 50001;
+DECLARE @TestHistoryID       INT = 50000;
+DECLARE @ProductionLineTimeAllocationID INT =40000;
+
+set identity_insert ProductionHistory off;
+
+begin try
+
+
+BEGIN TRANSACTION
+
+-- 1. Dodanie Kategorii i Produktu
+SET IDENTITY_INSERT ProductCategories ON;
+INSERT INTO ProductCategories (ProductCategoryID, CategoryName) VALUES (@TestCategoryID, 'Elektronika Testowa'),(@TestCategoryID+1,'Meble testowe');
+SET IDENTITY_INSERT ProductCategories OFF;
+
+
+
+-- 2. Dodanie Klienta
+SET IDENTITY_INSERT Customers ON;
+INSERT INTO Customers (CustomerID, CustomerType, CustomerName, Address,Country,City,Region,PostalCode,Phone)
+VALUES (@TestCustomerID, 1, 'Jan Testowy', 'ul. Testowa 1', 'Polska', N'Kraków', N'Małopolska', '31-000','000000000');
+SET IDENTITY_INSERT Customers OFF;
+
+
+-- 3. Dodanie Infrastruktury Produkcyjnej (Pod historię)
+SET IDENTITY_INSERT ProductionLine ON;
+INSERT INTO ProductionLine (ProductionLineId, ProductCategoryId) VALUES (@TestLineID, @TestCategoryID),(@TestLineID+1,@TestCategoryID+1);
+SET IDENTITY_INSERT ProductionLine OFF;
+
+SET IDENTITY_INSERT ProductionLineTimeAllocation ON;
+INSERT INTO ProductionLineTimeAllocation (ProductionLineTimeAllocationID,ProductionLineId, HoursTotal, Date, ShiftStart, ShiftEnd)
+VALUES
+    (@ProductionLineTimeAllocationID,@TestLineID, 200,getdate(),'8:00','20:00'),
+    (@ProductionLineTimeAllocationID+1,@TestLineID, 200,dateadd(day,1,getdate()),'8:00','20:00'),
+    (@ProductionLineTimeAllocationID+2,@TestLineID+1, 200,getdate(),'8:00','20:00'),
+    (@ProductionLineTimeAllocationID+3,@TestLineID+1, 200,dateadd(day,1,getdate()),'8:00','20:00')
+SET IDENTITY_INSERT ProductionLineTimeAllocation OFF;
+
+
+-- 4. Dodanie typu tablicowego do dodawania zamówień klienta
+IF NOT EXISTS (SELECT * FROM sys.types WHERE name = 'OrderItem' AND is_table_type = 1)
+BEGIN
+    CREATE TYPE OrderItem AS TABLE (
+        ProductID INT PRIMARY KEY,
+        Quantity INT,
+        Discount DECIMAL(5, 2)
+    );
+END
+
+SET IDENTITY_INSERT Products ON;
+INSERT INTO Products (ProductId, ProductCategoryId, ProductName, EstimatedProductionTime, CurrentSellPrice, CurrentProductionCost, Available,MinimalQuantity)
+VALUES (@TestProductID, @TestCategoryID, 'Smartfon Testowy', 1.0, 2000.00, 1200.00, 10,20),
+       (@TestProductID+1,@TestCategoryID+1,'Kanapa testowa',30.0,5000.0,2500,10,2);
+SET IDENTITY_INSERT Products OFF;
+
+set @ExistingProdOrderID = @@identity
+
+
+-- Ponieważ dodajemy produkt, którego Available < MinimalQuantity stworzy się zamówienie produkcyjne
+-- Zapytanie 1
+select * from ProductionOrder
+where ProductionOrderID=@ExistingProdOrderID
+
+
+
+
+-- 5. Testy procedur i Trigerrów
+
+    DECLARE @Items OrderItem
+
+-- Stwórz zamówienie klienta
+
+    DECLARE @deadline date =cast(getdate() as date)
+    insert into @Items(ProductID,Quantity,Discount)
+    values
+        (@TestProductID,600,0),
+        (@TestProductID+1,5,0)
+-- Zwroci blad. Nie możemy wyrpodukować w podanym czasie
+--     EXEC createCustomerOrder @CustomerID = @TestCustomerID,@Items = @Items,@Deadline = @deadline
+
+
+    delete from @Items where 1=1
+
+    insert into @Items(ProductID,Quantity,Discount)
+    values
+        (@TestProductID,600,0),
+        (@TestProductID+2,5,0)
+-- Zwroci blad. Jeden z produtow nie istnieje
+
+--     EXEC createCustomerOrder @CustomerID = @TestCustomerID,@Items = @Items,@Deadline = @deadline
+
+-- Zwroci błąd. Klient nie istnieje
+    DECLARE @tempCustomer int = @TestCustomerID+2
+--     EXEC createCustomerOrder @CustomerID = @tempCustomer,@Items = @Items,@Deadline = @deadline
+
+
+SET IDENTITY_INSERT Products ON;
+INSERT INTO Products (ProductId, ProductCategoryId, ProductName, EstimatedProductionTime, CurrentSellPrice, CurrentProductionCost, Available,MinimalQuantity,Removed)
+VALUES (@TestProductID+3, @TestCategoryID, 'Smartfon Testowy', 1.0, 2000.00, 1200.00, 10,20,1)
+SET IDENTITY_INSERT Products OFF;
+
+delete from @Items where 1=1
+
+    insert into @Items(ProductID,Quantity,Discount)
+    values
+        (@TestProductID+3,600,0)
+
+-- Zwroci błąd. Produkt jest wycofany
+    EXEC createCustomerOrder @CustomerID = @TestCustomerID,@Items = @Items,@Deadline = @deadline
+
+
+end try
+begin catch
+    IF @@TRANCOUNT>0
+        ROLLBACK TRANSACTION ;
+    THROW
+end catch
+IF @@TRANCOUNT>0
+    ROLLBACK TRANSACTION ;
+
+
+PRINT N'--- TEST ZAKOŃCZONY ---';
+
+```
+
+### Test: Modyfikacja zamówienia
+
+Test prezentuje możliwości modyfikacji zamówienia przez klienta:
+- zmniejszenie ilości produktów
+- zwiększenie ilości produktów
+- anulowanie całego zamówienia
+Przy modyfikacji zamówienia baza pilnuje aby czas zamówień produkcyjnych się zgadzał i żeby nie powstawały żadne dziury między zamówieniami produkcyjnymi. 
+
+```sql
+-- ======================================================
+-- KONFIGURACJA TESTU - ZDEFINIOWANE ID
+-- ======================================================
+
+BEGIN TRANSACTION
+DECLARE @TestCategoryID      INT = 20000;
+DECLARE @TestProductID       INT = 20000;
+DECLARE @TestCustomerID      INT = 20000;
+DECLARE @TestOrderID         INT = 20000;
+DECLARE @TestPaymentID       INT = 20000;
+DECLARE @TestLineID          INT = 20000;
+DECLARE @TestProdOrderID     INT = 20000;
+DECLARE @ExistingProdOrderID INT = 20001;
+DECLARE @TestHistoryID       INT = 20000;
+DECLARE @ProductionLineTimeAllocationID INT =20000;
+
+set identity_insert ProductionHistory off;
+
+-- 1. Dodanie Kategorii i Produktu
+SET IDENTITY_INSERT ProductCategories ON;
+INSERT INTO ProductCategories (ProductCategoryID, CategoryName) VALUES (@TestCategoryID, 'Elektronika Testowa'),(@TestCategoryID+1,'Meble testowe');
+SET IDENTITY_INSERT ProductCategories OFF;
+
+
+
+-- 2. Dodanie Klienta
+SET IDENTITY_INSERT Customers ON;
+INSERT INTO Customers (CustomerID, CustomerType, CustomerName, Address,Country,City,Region,PostalCode,Phone)
+VALUES (@TestCustomerID, 1, 'Jan Testowy', 'ul. Testowa 1', 'Polska', N'Kraków', N'Małopolska', '31-000','000000000');
+SET IDENTITY_INSERT Customers OFF;
+
+
+-- 3. Dodanie Infrastruktury Produkcyjnej (Pod historię)
+SET IDENTITY_INSERT ProductionLine ON;
+INSERT INTO ProductionLine (ProductionLineId, ProductCategoryId) VALUES (@TestLineID, @TestCategoryID),(@TestLineID+1,@TestCategoryID+1);
+SET IDENTITY_INSERT ProductionLine OFF;
+
+SET IDENTITY_INSERT ProductionLineTimeAllocation ON;
+INSERT INTO ProductionLineTimeAllocation (ProductionLineTimeAllocationID,ProductionLineId, HoursTotal, Date, ShiftStart, ShiftEnd)
+VALUES
+    (@ProductionLineTimeAllocationID,@TestLineID, 200,getdate(),'8:00','20:00'),
+    (@ProductionLineTimeAllocationID+1,@TestLineID, 200,dateadd(day,1,getdate()),'8:00','20:00'),
+    (@ProductionLineTimeAllocationID+2,@TestLineID+1, 200,getdate(),'8:00','20:00'),
+    (@ProductionLineTimeAllocationID+3,@TestLineID+1, 200,dateadd(day,1,getdate()),'8:00','20:00')
+SET IDENTITY_INSERT ProductionLineTimeAllocation OFF;
+
+
+-- 4. Dodanie typu tablicowego do dodawania zamówień klienta
+IF NOT EXISTS (SELECT * FROM sys.types WHERE name = 'OrderItem' AND is_table_type = 1)
+BEGIN
+    CREATE TYPE OrderItem AS TABLE (
+        ProductID INT PRIMARY KEY,
+        Quantity INT,
+        Discount DECIMAL(5, 2)
+    );
+END
+
+SET IDENTITY_INSERT Products ON;
+INSERT INTO Products (ProductId, ProductCategoryId, ProductName, EstimatedProductionTime, CurrentSellPrice, CurrentProductionCost, Available,MinimalQuantity)
+VALUES (@TestProductID, @TestCategoryID, 'Smartfon Testowy', 1.0, 2000.00, 1200.00, 10,20),
+       (@TestProductID+1,@TestCategoryID+1,'Kanapa testowa',30.0,5000.0,2500,10,2);
+SET IDENTITY_INSERT Products OFF;
+
+set @ExistingProdOrderID = @@identity
+
+
+-- Ponieważ dodajemy produkt, którego Available < MinimalQuantity stworzy się zamówienie produkcyjne
+-- Zapytanie 1
+select * from ProductionOrder
+where ProductionOrderID=@ExistingProdOrderID
+
+
+
+
+-- 5. Testy procedur i Trigerrów
+
+    DECLARE @Items OrderItem
+    DECLARE @Deadline date = dateadd(day,20,cast(getdate() as date))
+
+
+
+
+-- Stwórz zamówienie klienta
+
+    insert into @Items(ProductID,Quantity,Discount)
+    values
+        (@TestProductID,25,0),
+        (@TestProductID+1,5,0)
+
+    EXEC createCustomerOrder @CustomerID = @TestCustomerID,@Items = @Items,@Deadline = @Deadline
+
+    SET @TestOrderID=(select TOP 1 OrderID from Orders where OrderDate>=cast(getdate() as date) order by OrderID DESC)
+
+
+-- Stworzone zostało zamówienie o Statusie 1 (nieoplacone)
+-- Procedura createCustomerOrder sprawdziła tylko możliwość produkcji w podanym terminie oraz dodała wpis do Orders oraz OrderDetails
+
+
+-- Oplac zamówienie
+    SET IDENTITY_INSERT Payments ON;
+    INSERT into Payments(PaymentID,ORDERID, AMOUNT, PAYMENTMETHOD, TRANSACTIONDATE)
+    VALUES (@TestPaymentID,@TestOrderID,dbo.CalculateOrderValue_FN (@TestOrderID),'Karta',getdate())
+    SET IDENTITY_INSERT Payments OFF;
+
+    select TOP 1 @TestProdOrderID=ProductionOrderID from ProductionOrder order by ProductionOrderID DESC
+-- Opłacenie zamówienia zmieniło jego status na 2 (opłacone)
+-- Wywołał się też trigger odpowiedzialny za rezerwację produktów. Ponieważ Available było mniejsze od potrzebnej ilości stworzyło się też zamówienie produkcyjne
+
+
+
+-- Sytuacja, że klient zmienił zamówienie z 25 sztuk na 15
+EXEC UpdateOrderProductQuantity @OrderID = @TestOrderID, @ProductID = @TestProductID, @NewQuantity = 15
+
+
+-- Poniewaz jest to jedyne zamowienie ilosc sztuk potrzebnych do wyprodukowania zostanie zmniejszona
+-- Skorygowany zostanie też czas potrzebny na wyprodukowanie
+-- 1 zapytanie
+
+select * from ProductionOrder
+where ProductionOrderID in (@ExistingProdOrderID,@TestProdOrderID)
+
+-- Ilość produkowanych produktow zostanie zmniejszona
+-- 2 zapytanie
+select * from ProductReservation
+where OrderID=@TestOrderID
+
+-- Ilośc zarezerwowanych sztuk zostanie zmniejszona
+-- 3 zapytanie
+
+select * from Products
+where ProductId in (@TestProductID,@TestProductID+1)
+
+-- Zmniejszona liczba produktow w OrderDetails
+-- 4 zapytanie
+select * from OrderDetails
+where OrderID=@TestOrderID
+
+
+-- Sytuacja, że klient zmienił zamówienie z 15 sztuk na 40
+EXEC UpdateOrderProductQuantity @OrderID = @TestOrderID, @ProductID = @TestProductID, @NewQuantity = 40
+
+-- Poniewaz jest to jedyne zamowienie ilosc sztuk potrzebnych do wyprodukowania zostanie zwiekoszna
+-- Skorygowany zostanie też czas potrzebny na wyprodukowanie
+-- 5 zapytanie
+
+select * from ProductionOrder
+where ProductionOrderID>=@ExistingProdOrderID
+-- Ilość produkowanych produktow zostanie zwiekoszna
+-- 6 zapytanie
+select * from ProductReservation
+where OrderID=@TestOrderID
+
+-- Ilośc zarezerwowanych sztuk zostanie zwiekszona
+-- 7 zapytanie
+
+select * from Products
+where ProductId in (@TestProductID,@TestProductID+1)
+
+-- Zwiekszona liczba w OrderDetails
+-- 8 zapytanie
+select * from OrderDetails
+where OrderID=@TestOrderID
+
+-- Klient całkowici anulował zamówienie
+DECLARE @TEMP int = @TestProductID+1
+exec CancelFullOrder @TestOrderID
+
+-- usuniete zostana wszystkie zamowienia produkcyjne
+-- 9 zapytanie
+select * from ProductionOrder
+where ProductionOrderID>=@ExistingProdOrderID
+
+-- usuniete zostana zarezerwowane produkty z product reservation
+-- 10 zapytanie
+select * from ProductReservation
+where OrderID=@TestOrderID
+
+-- Ilosc zarezerwowanych sztuk zostanie zmniejszona
+-- 1 zapytanie
+
+select * from Products
+where ProductId in (@TestProductID,@TestProductID+1)
+
+
+-- 21 zapytanie
+select * from Orders
+where OrderID=@TestOrderID
+
+
+ROLLBACK TRANSACTION
+
+PRINT N'--- TEST ZAKOŃCZONY ---';
+
+
+```
+
+### Test: modyfikacja zamówień produkcyjnych
+
+Test prezentuje możliwość anulowania zamówienia produkcyjnego oraz usuwania określonej ilości produktu z kolejki zamówień.
+Baza danych cały czas pilnuje aby nie powstawały "dziury" pomiędzy zamówieniami.
+```sql
+-- ======================================================
+-- KONFIGURACJA TESTU - ZDEFINIOWANE ID
+-- ======================================================
+
+DECLARE @TestCategoryID      INT = 40000;
+DECLARE @TestProductID       INT = 40000;
+DECLARE @TestCustomerID      INT = 40000;
+DECLARE @TestOrderID         INT = 40000;
+DECLARE @TestPaymentID       INT = 40000;
+DECLARE @TestLineID          INT = 40000;
+DECLARE @TestProdOrderID     INT = 40000;
+DECLARE @ExistingProdOrderID INT = 40001;
+DECLARE @TestHistoryID       INT = 40000;
+DECLARE @ProductionLineTimeAllocationID INT =40000;
+
+BEGIN TRANSACTION
+BEGIN TRY
+
+SET IDENTITY_INSERT ProductionLineTimeAllocation OFF
+
+set identity_insert ProductionHistory off;
+
+-- 1. Dodanie Kategorii i Produktu
+SET IDENTITY_INSERT ProductCategories ON;
+INSERT INTO ProductCategories (ProductCategoryID, CategoryName) VALUES (@TestCategoryID, 'Elektronika Testowa'),(@TestCategoryID+1,'Meble testowe');
+SET IDENTITY_INSERT ProductCategories OFF;
+
+
+
+-- 2. Dodanie Klienta
+SET IDENTITY_INSERT Customers ON;
+INSERT INTO Customers (CustomerID, CustomerType, CustomerName, Address,Country,City,Region,PostalCode,Phone)
+VALUES (@TestCustomerID, 1, 'Jan Testowy', 'ul. Testowa 1', 'Polska', N'Kraków', N'Małopolska', '31-000','000000000');
+SET IDENTITY_INSERT Customers OFF;
+
+
+-- 3. Dodanie Infrastruktury Produkcyjnej (Pod historię)
+SET IDENTITY_INSERT ProductionLine ON;
+INSERT INTO ProductionLine (ProductionLineId, ProductCategoryId) VALUES (@TestLineID, @TestCategoryID),(@TestLineID+1,@TestCategoryID+1);
+SET IDENTITY_INSERT ProductionLine OFF;
+
+SET IDENTITY_INSERT ProductionLineTimeAllocation ON;
+INSERT INTO ProductionLineTimeAllocation (ProductionLineTimeAllocationID,ProductionLineId, HoursTotal, Date, ShiftStart, ShiftEnd)
+VALUES
+    (@ProductionLineTimeAllocationID,@TestLineID, 200,getdate(),'8:00','20:00'),
+    (@ProductionLineTimeAllocationID+1,@TestLineID, 200,dateadd(day,1,getdate()),'8:00','20:00'),
+    (@ProductionLineTimeAllocationID+2,@TestLineID+1, 200,getdate(),'8:00','20:00'),
+    (@ProductionLineTimeAllocationID+3,@TestLineID+1, 200,dateadd(day,1,getdate()),'8:00','20:00'),
+(@ProductionLineTimeAllocationID+4,@TestLineID, 200,dateadd(day,2,getdate()),'8:00','20:00'),
+(@ProductionLineTimeAllocationID+5,@TestLineID+1, 200,dateadd(day,2,getdate()),'8:00','20:00'),
+(@ProductionLineTimeAllocationID+6,@TestLineID, 200,dateadd(day,3,getdate()),'8:00','20:00'),
+(@ProductionLineTimeAllocationID+7,@TestLineID+1, 200,dateadd(day,3,getdate()),'8:00','20:00'),
+(@ProductionLineTimeAllocationID+8,@TestLineID, 200,dateadd(day,4,getdate()),'8:00','20:00'),
+(@ProductionLineTimeAllocationID+9,@TestLineID+1, 200,dateadd(day,4,getdate()),'8:00','20:00')
+SET IDENTITY_INSERT ProductionLineTimeAllocation OFF;
+
+
+-- 4. Dodanie typu tablicowego do dodawania zamówień klienta
+IF NOT EXISTS (SELECT * FROM sys.types WHERE name = 'OrderItem' AND is_table_type = 1)
+BEGIN
+    CREATE TYPE OrderItem AS TABLE (
+        ProductID INT PRIMARY KEY,
+        Quantity INT,
+        Discount DECIMAL(5, 2)
+    );
+END
+
+SET IDENTITY_INSERT Products ON;
+INSERT INTO Products (ProductId, ProductCategoryId, ProductName, EstimatedProductionTime, CurrentSellPrice, CurrentProductionCost, Available,MinimalQuantity)
+VALUES (@TestProductID, @TestCategoryID, 'Smartfon Testowy', 1.0, 2000.00, 1200.00, 10,20),
+       (@TestProductID+1,@TestCategoryID+1,'Kanapa testowa',30.0,5000.0,2500,10,2);
+SET IDENTITY_INSERT Products OFF;
+
+set @ExistingProdOrderID = @@identity
+
+declare @dateFarAhead date='2026-12-12'
+declare @secondProduct int = @TestProductID+1
+declare @toDelete int
+
+EXEC CreateNewProductionOrder @Deadline = @dateFarAhead, @Quantity = 10, @ProductID = @TestProductID
+EXEC CreateNewProductionOrder @Deadline = @dateFarAhead, @Quantity = 20, @ProductID = @TestProductID
+
+select TOP 1 @toDelete=ProductionOrderID
+from ProductionOrder
+order by ProductionOrderID desc
+
+EXEC CreateNewProductionOrder @Deadline = @dateFarAhead, @Quantity = 30, @ProductID = @TestProductID
+EXEC CreateNewProductionOrder @Deadline = @dateFarAhead, @Quantity = 5, @ProductID = @secondProduct
+EXEC CreateNewProductionOrder @Deadline = @dateFarAhead, @Quantity = 10, @ProductID = @secondProduct
+
+
+-- Poczatkowy stan
+-- Zapytanie 1
+select * from ProductionOrder
+where AddedDate>=cast(getdate() as date)
+
+-- usuwanie zamowienia produkcyjnego powoduje zmienienie statusu na 4 i przesuwa inne zamowineia na jego miejsce
+delete from ProductionOrder
+    where ProductionOrderID=@toDelete
+
+--  Stan po usunieciu
+-- Zapytanie 2
+select * from ProductionOrder
+where AddedDate>=cast(getdate() as date)
+    order by ProductionLineId,PlannedStartDate
+
+
+-- Usuwanie pewnej ilości produktów z zamówień produkcyjnych.
+-- Usuwa całe zamówienia produkcyjne, chyba że ilośc do usunięcia jest mniejsza od ilości do wyprodukowania w tym zamówieniu. Wtedy zmniejszamy `Quantity`.
+-- Usunięcie -> zmiana statusu na 4 (anulowane)
+EXEC usp_RemoveProductQuantityFromOrders @ProductId = @TestProductID, @QuantityToRemove = 40, @ProductionLineId = @TestLineID
+
+
+-- Zapytanie 3
+select * from ProductionOrder
+where AddedDate>=cast(getdate() as date)
+    order by ProductionLineId,PlannedStartDate
+
+end try
+begin catch
+    ROLLBACK TRANSACTION;
+    THROW
+end catch
+IF @@TRANCOUNT>0
+    ROLLBACK TRANSACTION;
+
+
+
+PRINT N'--- TEST ZAKOŃCZONY ---';
+
+
+```
