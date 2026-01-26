@@ -64,6 +64,28 @@ END
 GO
 -------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------
+-- Aktualizuje ProductionOrder zwiekszajac iloc wyprodukowanych, zmieniajac status oraz ustawiajac date zakonczenia
+CREATE OR ALTER TRIGGER trg_ProductionHistory_UpdateOrder
+ON ProductionHistory
+AFTER INSERT
+AS
+BEGIN
+    -- 1. Aktualizacja wyprodukowanej ilości w ProductionOrder
+    UPDATE po
+    SET po.QuantityProduced = (SELECT SUM(Quantity) FROM ProductionHistory WHERE ProductionOrderID = po.ProductionOrderID),
+        -- 2. Jeśli wyprodukowano tyle co zamówiono, ustaw status na 'Wyprodukowane' (3) i dodaj EndDate
+        po.ProductionOrderStatus = CASE 
+            WHEN (SELECT SUM(Quantity) FROM ProductionHistory WHERE ProductionOrderID = po.ProductionOrderID) >= po.Quantity 
+            THEN 3 ELSE po.ProductionOrderStatus END,
+        po.EndDate = CASE 
+            WHEN (SELECT SUM(Quantity) FROM ProductionHistory WHERE ProductionOrderID = po.ProductionOrderID) >= po.Quantity 
+            THEN GETDATE() ELSE po.EndDate END
+    FROM ProductionOrder po
+    JOIN inserted i ON po.ProductionOrderID = i.ProductionOrderID;
+END;
+GO
+-------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------
 -- Koordynacja rezerwacji i wydań towaru na podstawie zmiany statusu zamówienia.
 -- 1. Jeśli Status=2 (Opłacone): Tworzy rekordy w tabeli ProductReservation (rezerwuje towar).
 -- 2. Jeśli Status=3 (Do wysyłki): Odejmuje towar z Available i usuwa rezerwację.
@@ -126,68 +148,114 @@ GO
 -- Reaguje na każdą zmianę w tabeli ProductReservation. Dodaje ilości z 'inserted' (nowe rezerwacje).
 -- Sprawdza czy dalej możliwa jest produkcja w terminie podanym przez klienta.
 -- Odejmuje ilości z 'deleted' (koniec rezerwacji) od kolumny Products.Reserved.
-CREATE   TRIGGER trg_ProductReservation_UpdateProductsReserved
+CREATE OR ALTER TRIGGER trg_ProductReservation_UpdateProductsReserved
 ON ProductReservation
 AFTER INSERT, UPDATE, DELETE
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- 1. Obsługa nowych rezerwacji lub zwiększenia ilości (INSERT/UPDATE)
+    -- 1. OBSŁUGA ZWIĘKSZENIA REZERWACJI / NOWYCH POZYCJI
+    IF EXISTS (SELECT 1 FROM inserted i 
+              LEFT JOIN deleted d ON i.OrderID = d.OrderID AND i.ProductID = d.ProductID
+              WHERE d.Quantity IS NULL OR i.Quantity > d.Quantity)
+    BEGIN
+        DECLARE @CurrentOrderID INT;
+        DECLARE @CurrentDeadline DATE;
+        DECLARE @Items OrderItem; 
+
+        DECLARE order_cur CURSOR FOR 
+        SELECT DISTINCT i.OrderID, o.RequiredDate
+        FROM inserted i
+        JOIN Orders o ON i.OrderID = o.OrderID
+        -- Ważne: filtrujemy kursor, by brał tylko zamówienia ze wzrostem ilości
+        WHERE EXISTS (
+            SELECT 1 FROM inserted i2 
+            LEFT JOIN deleted d2 ON i2.OrderID = d2.OrderID AND i2.ProductID = d2.ProductID
+            WHERE i2.OrderID = i.OrderID AND (d2.Quantity IS NULL OR i2.Quantity > d2.Quantity)
+        );
+
+        OPEN order_cur;
+        FETCH NEXT FROM order_cur INTO @CurrentOrderID, @CurrentDeadline;
+
+        WHILE @@FETCH_STATUS = 0
+        BEGIN
+            -- CZYŚCIMY zawartość zmiennej przed kolejnym zamówieniem
+            DELETE FROM @Items;
+
+            INSERT INTO @Items(ProductID, Quantity, Discount)
+            SELECT 
+                i.ProductId,
+                (i.Quantity - ISNULL(d.Quantity, 0)),
+                od.Discount
+            FROM inserted i
+            INNER JOIN OrderDetails od ON od.OrderID = i.OrderID AND od.ProductId = i.ProductID
+            LEFT JOIN deleted d ON i.OrderID = d.OrderID AND i.ProductID = d.ProductID
+            WHERE i.OrderID = @CurrentOrderID 
+              AND (i.Quantity > d.Quantity OR d.Quantity IS NULL);
+
+            IF EXISTS (SELECT 1 FROM @Items)
+            BEGIN
+                EXEC RedirectItems @Items = @Items, @Deadline = @CurrentDeadline;
+            END
+
+            FETCH NEXT FROM order_cur INTO @CurrentOrderID, @CurrentDeadline;
+        END 
+
+        CLOSE order_cur;
+        DEALLOCATE order_cur;
+    END
+
+    -- 2. OBSŁUGA ZMNIEJSZENIA REZERWACJI / ANULOWANIA (Redukcja produkcji)
+    IF EXISTS (SELECT 1 FROM deleted d 
+               LEFT JOIN inserted i ON i.OrderID = d.OrderID AND i.ProductID = d.ProductID
+               WHERE i.Quantity IS NULL OR d.Quantity > i.Quantity)
+    BEGIN
+        -- Kursor lub pętla do obsłużenia redukcji dla każdego produktu
+        DECLARE @RedProductId INT, @DiffQuantity INT;
+
+        DECLARE cur CURSOR FOR
+        SELECT 
+            d.ProductId,
+            (d.Quantity - ISNULL(i.Quantity, 0))
+        FROM deleted d
+        LEFT JOIN inserted i ON i.OrderID = d.OrderID AND i.ProductID = d.ProductID
+        WHERE (d.Quantity > i.Quantity OR i.Quantity IS NULL);
+
+        OPEN cur;
+        FETCH NEXT FROM cur INTO @RedProductId, @DiffQuantity;
+        WHILE @@FETCH_STATUS = 0
+        BEGIN
+            -- W TYM MIEJSCU POWINO ZOSTAC WYWOWALE ZMNIEJSNIE ZAMOWIENIA PRODUKCJI
+            -- EXEC ReduceProductProduction @ProductID = @RedProductId, @Quantity = @DiffQuantity;
+            FETCH NEXT FROM cur INTO @RedProductId, @DiffQuantity;
+        END
+        CLOSE cur;
+        DEALLOCATE cur;
+    END
+
+    -- 3. AKTUALIZACJA POLA RESERVED W TABELI PRODUCTS
+    -- Zwiększanie o to co wstawiono/zmieniono na plus
     IF EXISTS (SELECT 1 FROM inserted)
     BEGIN
-        DECLARE @Deadline date
-        
-        select @Deadline=o.RequiredDate
-        from inserted i
-        inner join Orders o on o.OrderID=i.OrderID
-        
-        DECLARE @Items OrderItem
-
-        insert into @Items(ProductID,Quantity,Discount)
-        select i.ProductId,i.Quantity,od.Discount
-        from inserted i
-        inner join OrderDetails od on od.OrderID=i.OrderID and od.ProductId=i.ProductID
-        
-        begin try
-            EXEC RedirectItems @Items = @Items, @Deadline = @Deadline
-        end try
-        begin catch
-            throw
-        end catch
-
-
         UPDATE p
         SET p.Reserved = ISNULL(p.Reserved, 0) + i.TotalQty
         FROM Products p
-        INNER JOIN (
-            SELECT ProductID, SUM(Quantity) AS TotalQty
-            FROM inserted 
-            GROUP BY ProductID
-        ) i ON p.ProductId = i.ProductID;
-
-
-        
-
+        INNER JOIN (SELECT ProductID, SUM(Quantity) AS TotalQty FROM inserted GROUP BY ProductID) i 
+        ON p.ProductId = i.ProductID;
     END
 
-    -- 2. Obsługa usuniętych rezerwacji lub starej ilości przy zmianie (DELETE/UPDATE)
+    -- Zmniejszanie o to co usunięto/zmieniono na minus
     IF EXISTS (SELECT 1 FROM deleted)
     BEGIN
         UPDATE p
         SET p.Reserved = ISNULL(p.Reserved, 0) - d.TotalQty
         FROM Products p
-        INNER JOIN (
-            SELECT ProductID, SUM(Quantity) AS TotalQty 
-            FROM deleted 
-            GROUP BY ProductID
-        ) d ON p.ProductId = d.ProductID;
+        INNER JOIN (SELECT ProductID, SUM(Quantity) AS TotalQty FROM deleted GROUP BY ProductID) d 
+        ON p.ProductId = d.ProductID;
     END
-
-
 END
-go
-
+GO
 
 -------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------
@@ -261,5 +329,16 @@ BEGIN
     DEALLOCATE order_cursor;
 END
 GO
+-------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------
+
+CREATE OR ALTER TRIGGER trg_CheckStockAndProduce
+ON Products
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+END;
+
 -------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------
