@@ -1,4 +1,4 @@
-CREATE function CalculateEfficiencyFactor(@Date date,@ProductionLineID int)
+CREATE OR ALTER function CalculateEfficiencyFactor(@Date date,@ProductionLineID int)
 returns decimal(16,6)
 -- Funkcja oblicza ile mocy przerobowej posiada linia w podanym w dniu w rzeczywistej godzinie pracy lini.
 as
@@ -28,7 +28,7 @@ go
 
 -- Funkcja sprawdza w jakim dniu zostanie wyprodukowana podana ilość produktu dla zadanego zamówienia produkcyjnego
 -- Funkcja w pierwszej kolejności sprawdza wpisy z ProductionHistory, jeśli ich nie ma szacuje możliwości produkcyjne
-CREATE   function CalculateWhenQuantityOfProductWillBeProduced(
+CREATE OR ALTER function CalculateWhenQuantityOfProductWillBeProduced(
     @ProductionOrderID int,
     @Quantity int
     )
@@ -111,7 +111,7 @@ go
 
 -- Procedura tworzy nowe zamówienie produkcyjne.
 -- Zamówienie zaczyna się od końca ostatniego zamówienia lub od następnej pełnej godziny lub od początku zmiany następnego dnia gdzie możliwa jest produkcja
-CREATE procedure CreateNewProductionOrder
+CREATE OR ALTER procedure CreateNewProductionOrder
 @Deadline date,
 @Quantity int,
 @ProductID int,
@@ -309,7 +309,7 @@ go
 -- Jeśli nie można wyrpodukować potrzebnej ilości produktów zwraca błąd
 -- Flaga @OnlyCheck informuje o tym czy system ma tylko sprawdzić możliwośći produkcyjne.
 
-CREATE procedure RedirectAndCreateNewOrder
+CREATE OR ALTER procedure RedirectAndCreateNewOrder
 @ProductID int ,
 @EndDate date,
 @Quantity int,
@@ -407,7 +407,7 @@ go
 -------------------------------------------------------------------------------------------------------------------
 
 -- Funkcja Tworzy nowe zamówienie klienta
-CREATE PROCEDURE    createCustomerOrder
+CREATE OR ALTER PROCEDURE    createCustomerOrder
 @CustomerID int,
 @Items OrderItem READONLY ,
 @Deadline date,
@@ -482,7 +482,7 @@ go
 
 -- Procedura dla każdego produktu z @Items wykonuje procedure RedirectAndCreateNewOrder
 -- @OnlyCheck = 1, sprawi że system sprawdzi tylko możliwości produkcyjne. Nie zostaną dodane żadne nowe wiersze
-CREATE procedure RedirectItems
+CREATE OR ALTER procedure RedirectItems
 @Items OrderItem READONLY,
 @Deadline date,
 @OnlyCheck bit = 0
@@ -532,7 +532,6 @@ as
 
     end catch
 go
-
 
 -------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------
@@ -802,3 +801,73 @@ BEGIN
     ORDER BY DefectRatePercent DESC;
 END
 go
+
+-------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------
+--Procedura pozwala na anulowanie zamowienia
+
+CREATE OR ALTER PROCEDURE CancelFullOrder
+    @OrderID INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- 1. Blokada dla zamówień wysłanych/zrealizowanych
+    IF EXISTS (SELECT 1 FROM Orders WHERE OrderID = @OrderID AND Status IN (3, 4, 5))
+    BEGIN
+        RETURN;
+    END
+
+    -- 2. Aktualizacja statusu
+    UPDATE Orders
+    SET Status = 5 -- 'Anulowane'
+    WHERE OrderID = @OrderID;
+END;
+GO
+
+
+-------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------
+-- Procedura pozwala na zmiane ilosci produktu w zamowieniu
+CREATE OR ALTER PROCEDURE UpdateOrderProductQuantity
+    @OrderID INT,
+    @ProductID INT,
+    @NewQuantity INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- 1. Blokada edycji dla zamówień gotowe do wys(3), zrealizowane (4) lub anulowane (5)
+    IF EXISTS (SELECT 1 FROM Orders WHERE OrderID = @OrderID AND Status IN (3, 4, 5))
+    BEGIN
+        RETURN;
+    END
+
+    -- 3. Scenariusz: Usuwanie produktu (ilość <= 0)
+    IF @NewQuantity <= 0
+    BEGIN
+        -- Usuwamy z detali zamówienia
+        DELETE FROM OrderDetails 
+        WHERE OrderID = @OrderID AND ProductID = @ProductID;
+
+        -- Usuwamy odpowiadającą rezerwację 
+        DELETE FROM ProductReservation 
+        WHERE OrderID = @OrderID AND ProductID = @ProductID;
+    END
+    -- 4. Scenariusz: Aktualizacja ilości
+    ELSE
+    BEGIN
+        -- Aktualizujemy ilość w zamówieniu
+        UPDATE OrderDetails 
+        SET Quantity = @NewQuantity 
+        WHERE OrderID = @OrderID AND ProductID = @ProductID;
+
+        -- Aktualizujemy ilość w rezerwacji 
+        UPDATE ProductReservation
+        SET Quantity = @NewQuantity
+        WHERE OrderID = @OrderID AND ProductID = @ProductID;
+    END
+
+    -- Po zmianiae reserved uruchomia sie trigger na ProducTresevation ktory robi update producktu
+END;
+GO
