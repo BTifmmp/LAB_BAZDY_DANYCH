@@ -862,6 +862,11 @@ BEGIN
     DECLARE @nextID INT;
     DECLARE @nextMinutes INT;
     DECLARE @currentAnchor DATETIME = @AnchorDate;
+    declare @startDate datetime
+    
+    select @startDate=PlannedStartDate
+    from ProductionOrder
+    where ProductionOrderID=@ExcludedOrderId
 
     -- Kursor pobierający wszystkie aktywne zlecenia po dacie zakotwiczenia
     DECLARE curNext CURSOR LOCAL FOR
@@ -871,7 +876,7 @@ BEGIN
     FROM ProductionOrder po
     INNER JOIN Products p ON po.ProductId = p.ProductId
     WHERE po.ProductionLineId = @ProductionLineId
-      AND po.PlannedStartDate >= @AnchorDate -- Bierzemy wszystko od punktu startu
+      AND po.PlannedStartDate >= @startDate -- Bierzemy wszystko od punktu startu
       AND (@ExcludedOrderId IS NULL OR po.ProductionOrderId <> @ExcludedOrderId)
       AND po.ProductionOrderStatus NOT IN (3, 4) -- Pomijamy zakończone i anulowane
     ORDER BY po.PlannedStartDate ASC;
